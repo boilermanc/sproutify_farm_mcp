@@ -239,33 +239,31 @@ function createMCPServer(userContext: UserContext) {
 
         case "get_towers": {
           const status = (args as any)?.status as string | undefined;
-          
+
           let query = scopedSupabase
             .from('towers')
-            .select(`
-              *,
-              plant_batches (
-                id,
-                quantity,
-                status,
-                crops (name, variety, days_to_harvest)
-              )
-            `)
+            .select('*')
             .eq('farm_id', farmId);
-          
+
           if (status) {
             query = query.eq('status', status);
           }
-          
+
           const { data, error } = await query;
-          
+
           if (error) throw error;
-          
+
+          // Count by status for summary
+          const statusCounts = data?.reduce((acc, tower) => {
+            acc[tower.status] = (acc[tower.status] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>) || {};
+
           return {
             content: [
               {
                 type: "text",
-                text: JSON.stringify(data, null, 2)
+                text: `Total Towers: ${data?.length || 0}\n\nBy Status:\n${Object.entries(statusCounts).map(([s, count]) => `- ${s}: ${count}`).join('\n')}\n\nDetails:\n${JSON.stringify(data, null, 2)}`
               }
             ]
           };
@@ -279,7 +277,7 @@ function createMCPServer(userContext: UserContext) {
             .from('seeding_plans')
             .select(`
               *,
-              crops (name, variety)
+              crops:crop_id (name, variety)
             `)
             .eq('farm_id', farmId);
           
@@ -322,8 +320,8 @@ function createMCPServer(userContext: UserContext) {
             .from('seeds')
             .select(`
               *,
-              crops (name, variety),
-              vendors (name, contact_email)
+              crops:crop_id (name, variety),
+              vendors:vendor_id (name, contact_email)
             `)
             .eq('farm_id', farmId);
           
