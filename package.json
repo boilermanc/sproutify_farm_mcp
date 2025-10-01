@@ -1,0 +1,49 @@
+{
+  "name": "sproutify_farm_mcp",
+  "version": "1.0.0",
+  "description": "Core MCP Server for Sproutify Farm",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "dev:server": "tsx watch src/server.ts",
+    "start": "node dist/index.js",
+    "start:server": "node dist/server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/boilermanc/sproutify_farm_mcp.git"
+  },
+  "keywords": [
+    "mcp",
+    "vertical-farming",
+    "aeroponics",
+    "supabase",
+    "sage-ai"
+  ],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/boilermanc/sproutify_farm_mcp/issues"
+  },
+  "homepage": "https://github.com/boilermanc/sproutify_farm_mcp#readme",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.18.2",
+    "@supabase/supabase-js": "^2.58.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^24.6.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}
