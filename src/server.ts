@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import express from 'express';
+import type { Request } from 'express';
 import cors from 'cors';
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
@@ -41,14 +42,36 @@ interface UserContext {
   role: string;
 }
 
+function extractAccessToken(req: Request): string | null {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.substring(7);
+  }
+
+  const tokenParam = req.query.access_token;
+  if (typeof tokenParam === 'string' && tokenParam.trim().length > 0) {
+    return tokenParam;
+  }
+
+  if (Array.isArray(tokenParam)) {
+    const firstValid = tokenParam.find((value) =>
+      typeof value === 'string' && value.trim().length > 0
+    );
+    if (firstValid && typeof firstValid === 'string') {
+      return firstValid;
+    }
+  }
+
+  return null;
+}
+
+
 // Middleware to verify JWT and extract user context
-async function authenticateUser(authHeader: string | undefined): Promise<UserContext | null> {
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+async function authenticateUser(token: string | null): Promise<UserContext | null> {
+  if (!token) {
     return null;
   }
 
-  const token = authHeader.substring(7);
-  
   try {
     // Verify the JWT token with Supabase
     const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
@@ -440,20 +463,70 @@ function createMCPServer(userContext: UserContext) {
   return server;
 }
 
+const activeSessions = new Map<string, { transport: SSEServerTransport; user: UserContext }>();
+
 // SSE endpoint for MCP
 app.get('/mcp/sse', async (req, res) => {
-  const userContext = await authenticateUser(req.headers.authorization);
-  
+  const token = extractAccessToken(req);
+  const userContext = await authenticateUser(token);
+
   if (!userContext) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
   console.log(`MCP connection from user ${userContext.email} for farm ${userContext.farmId}`);
-  
+
   const transport = new SSEServerTransport('/mcp/sse', res);
+  const sessionId = transport.sessionId;
   const server = createMCPServer(userContext);
-  
-  await server.connect(transport);
+
+  activeSessions.set(sessionId, { transport, user: userContext });
+
+  transport.onclose = () => {
+    activeSessions.delete(sessionId);
+  };
+
+  try {
+    await server.connect(transport);
+    console.log(`Established MCP SSE session ${sessionId}`);
+  } catch (error) {
+    activeSessions.delete(sessionId);
+    console.error('Failed to establish MCP SSE session:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to establish MCP session' });
+    }
+  }
+});
+
+app.post('/mcp/sse', async (req, res) => {
+  const rawSessionId = req.query.sessionId;
+  const sessionId = Array.isArray(rawSessionId) ? rawSessionId[0] : rawSessionId;
+
+  if (!sessionId || typeof sessionId !== 'string') {
+    return res.status(400).json({ error: 'Missing sessionId' });
+  }
+
+  const session = activeSessions.get(sessionId);
+
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+
+  const token = extractAccessToken(req);
+  const userContext = await authenticateUser(token);
+
+  if (!userContext || userContext.userId !== session.user.userId) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  try {
+    await session.transport.handlePostMessage(req, res, req.body);
+  } catch (error) {
+    console.error('Error handling MCP message:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to process MCP message' });
+    }
+  }
 });
 
 // Health check endpoint
@@ -463,8 +536,8 @@ app.get('/health', (req, res) => {
 
 // Direct report generation endpoint
 app.post('/reports/generate', async (req, res) => {
-  const userContext = await authenticateUser(req.headers.authorization);
-  
+  const userContext = await authenticateUser(extractAccessToken(req));
+
   if (!userContext) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -532,3 +605,4 @@ app.listen(PORT, () => {
   console.log(`MCP SSE endpoint: http://localhost:${PORT}/mcp/sse`);
   console.log(`Report generator: http://localhost:${PORT}/reports/generate`);
 });
+
