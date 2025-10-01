@@ -208,16 +208,26 @@ function createMCPServer(userContext) {
                     const { data, error } = await query;
                     if (error)
                         throw error;
+                    if (!data || data.length === 0) {
+                        return {
+                            content: [
+                                {
+                                    type: "text",
+                                    text: `You have no towers set up yet. Add towers to your farm to get started with vertical farming!`
+                                }
+                            ]
+                        };
+                    }
                     // Count by status for summary
-                    const statusCounts = data?.reduce((acc, tower) => {
+                    const statusCounts = data.reduce((acc, tower) => {
                         acc[tower.status] = (acc[tower.status] || 0) + 1;
                         return acc;
-                    }, {}) || {};
+                    }, {});
                     return {
                         content: [
                             {
                                 type: "text",
-                                text: `Total Towers: ${data?.length || 0}\n\nBy Status:\n${Object.entries(statusCounts).map(([s, count]) => `- ${s}: ${count}`).join('\n')}\n\nDetails:\n${JSON.stringify(data, null, 2)}`
+                                text: `You have ${data.length} tower${data.length === 1 ? '' : 's'}:\n\n${Object.entries(statusCounts).map(([s, count]) => `• ${count} ${s.replace('_', ' ')}`).join('\n')}`
                             }
                         ]
                     };
@@ -248,6 +258,16 @@ function createMCPServer(userContext) {
                         .eq('farm_id', farmId);
                     if (spacingError)
                         throw spacingError;
+                    if ((!seedingPlans || seedingPlans.length === 0) && (!spacingPlans || spacingPlans.length === 0)) {
+                        return {
+                            content: [
+                                {
+                                    type: "text",
+                                    text: `You don't have any seeding or spacing plans yet. Create a plan to schedule your planting activities!`
+                                }
+                            ]
+                        };
+                    }
                     return {
                         content: [
                             {
@@ -276,6 +296,18 @@ function createMCPServer(userContext) {
                     const { data, error } = await query;
                     if (error)
                         throw error;
+                    if (!data || data.length === 0) {
+                        return {
+                            content: [
+                                {
+                                    type: "text",
+                                    text: lowStockOnly
+                                        ? `No low stock items - your seed inventory looks good!`
+                                        : `You don't have any seeds in inventory yet. Add seeds to start planning your crops!`
+                                }
+                            ]
+                        };
+                    }
                     return {
                         content: [
                             {
