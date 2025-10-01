@@ -381,11 +381,26 @@ function createMCPServer(userContext) {
             }
         }
         catch (error) {
+            let detail;
+            if (error instanceof Error && error.message) {
+                detail = error.message;
+            }
+            else if (typeof error === 'object' && error !== null) {
+                try {
+                    detail = JSON.stringify(error, null, 2);
+                }
+                catch (_jsonError) {
+                    detail = String(error);
+                }
+            }
+            else {
+                detail = String(error);
+            }
             return {
                 content: [
                     {
                         type: "text",
-                        text: `Error: ${error instanceof Error ? error.message : String(error)}`
+                        text: `Error: ${detail}`
                     }
                 ]
             };

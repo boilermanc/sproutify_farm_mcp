@@ -448,16 +448,30 @@ function createMCPServer(userContext: UserContext) {
         default:
           throw new Error(`Unknown tool: ${name}`);
       }
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
+    } catch (error) {
+      let detail: string;
+
+      if (error instanceof Error && error.message) {
+        detail = error.message;
+      } else if (typeof error === 'object' && error !== null) {
+        try {
+          detail = JSON.stringify(error, null, 2);
+        } catch (_jsonError) {
+          detail = String(error);
+        }
+      } else {
+        detail = String(error);
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error: ${detail}`
+          }
+        ]
+      };
+    }
   });
 
   return server;
