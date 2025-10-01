@@ -148,6 +148,44 @@ function createMCPServer(userContext) {
                     }
                 },
                 {
+                    name: "get_spray_schedule",
+                    description: "Get spray schedules and applications for your farm",
+                    inputSchema: {
+                        type: "object",
+                        properties: {
+                            upcomingOnly: { type: "boolean", description: "Only show upcoming schedules (optional)" },
+                            startDate: { type: "string", description: "Start date filter (ISO format, optional)" },
+                            endDate: { type: "string", description: "End date filter (ISO format, optional)" }
+                        }
+                    }
+                },
+                {
+                    name: "get_nutrients",
+                    description: "Get nutrient data and EC/pH readings for your farm",
+                    inputSchema: {
+                        type: "object",
+                        properties: {
+                            towerId: { type: "string", description: "Filter by specific tower (optional)" },
+                            limit: { type: "number", description: "Limit number of recent readings (default 10)" }
+                        }
+                    }
+                },
+                {
+                    name: "get_water_data",
+                    description: "Get water quality and usage data for your farm",
+                    inputSchema: {
+                        type: "object",
+                        properties: {
+                            dataType: {
+                                type: "string",
+                                enum: ["quality", "usage", "both"],
+                                description: "Type of water data to retrieve (default: both)"
+                            },
+                            limit: { type: "number", description: "Limit number of recent readings (default 10)" }
+                        }
+                    }
+                },
+                {
                     name: "generate_report",
                     description: "Generate a printable report for your farm",
                     inputSchema: {
@@ -345,6 +383,136 @@ function createMCPServer(userContext) {
                             {
                                 type: "text",
                                 text: `Seeding plan created successfully for ${params.quantity} seeds on ${params.seedingDate}`
+                            }
+                        ]
+                    };
+                }
+                case "get_spray_schedule": {
+                    const upcomingOnly = args?.upcomingOnly;
+                    const startDate = args?.startDate;
+                    const endDate = args?.endDate;
+                    let query = scopedSupabase
+                        .from('spray_schedules')
+                        .select(`
+              *,
+              spray_products:product_id (name, active_ingredient, application_rate)
+            `)
+                        .eq('farm_id', farmId);
+                    if (upcomingOnly) {
+                        query = query.gte('scheduled_date', new Date().toISOString());
+                    }
+                    if (startDate) {
+                        query = query.gte('scheduled_date', startDate);
+                    }
+                    if (endDate) {
+                        query = query.lte('scheduled_date', endDate);
+                    }
+                    query = query.order('scheduled_date', { ascending: true });
+                    const { data, error } = await query;
+                    if (error)
+                        throw error;
+                    if (!data || data.length === 0) {
+                        return {
+                            content: [
+                                {
+                                    type: "text",
+                                    text: upcomingOnly
+                                        ? `No upcoming spray schedules. Your farm is all set!`
+                                        : `No spray schedules found. Add spray schedules to manage your pest and disease prevention.`
+                                }
+                            ]
+                        };
+                    }
+                    return {
+                        content: [
+                            {
+                                type: "text",
+                                text: JSON.stringify(data, null, 2)
+                            }
+                        ]
+                    };
+                }
+                case "get_nutrients": {
+                    const towerId = args?.towerId;
+                    const limit = args?.limit || 10;
+                    let query = scopedSupabase
+                        .from('nutrient_readings')
+                        .select(`
+              *,
+              towers:tower_id (position)
+            `)
+                        .eq('farm_id', farmId);
+                    if (towerId) {
+                        query = query.eq('tower_id', towerId);
+                    }
+                    query = query
+                        .order('reading_date', { ascending: false })
+                        .limit(limit);
+                    const { data, error } = await query;
+                    if (error)
+                        throw error;
+                    if (!data || data.length === 0) {
+                        return {
+                            content: [
+                                {
+                                    type: "text",
+                                    text: `No nutrient readings found. Start recording EC and pH levels to monitor your nutrient solution!`
+                                }
+                            ]
+                        };
+                    }
+                    return {
+                        content: [
+                            {
+                                type: "text",
+                                text: JSON.stringify(data, null, 2)
+                            }
+                        ]
+                    };
+                }
+                case "get_water_data": {
+                    const dataType = args?.dataType || 'both';
+                    const limit = args?.limit || 10;
+                    const results = {};
+                    if (dataType === 'quality' || dataType === 'both') {
+                        const { data: qualityData, error: qualityError } = await scopedSupabase
+                            .from('water_quality')
+                            .select('*')
+                            .eq('farm_id', farmId)
+                            .order('test_date', { ascending: false })
+                            .limit(limit);
+                        if (qualityError)
+                            throw qualityError;
+                        results.quality = qualityData;
+                    }
+                    if (dataType === 'usage' || dataType === 'both') {
+                        const { data: usageData, error: usageError } = await scopedSupabase
+                            .from('water_usage')
+                            .select('*')
+                            .eq('farm_id', farmId)
+                            .order('usage_date', { ascending: false })
+                            .limit(limit);
+                        if (usageError)
+                            throw usageError;
+                        results.usage = usageData;
+                    }
+                    const hasData = (results.quality && results.quality.length > 0) ||
+                        (results.usage && results.usage.length > 0);
+                    if (!hasData) {
+                        return {
+                            content: [
+                                {
+                                    type: "text",
+                                    text: `No water data found. Start tracking water quality and usage to optimize your farm operations!`
+                                }
+                            ]
+                        };
+                    }
+                    return {
+                        content: [
+                            {
+                                type: "text",
+                                text: JSON.stringify(results, null, 2)
                             }
                         ]
                     };
