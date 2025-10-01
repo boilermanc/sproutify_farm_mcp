@@ -306,7 +306,8 @@ export class ReportGenerator {
           quantity,
           status,
           seeded_date,
-          crops (name, variety, days_to_harvest)
+          crop_id,
+          crops:crop_id (name, variety, days_to_harvest)
         )
       `)
             .eq('farm_id', context.farmId)
@@ -378,8 +379,8 @@ export class ReportGenerator {
             .from('seeds')
             .select(`
         *,
-        crops (name, variety, category),
-        vendors (name, contact_email, contact_phone)
+        crops:crop_id (name, variety, category),
+        vendors:vendor_id (name, contact_email, contact_phone)
       `)
             .eq('farm_id', context.farmId)
             .order('crops(name)');
@@ -478,7 +479,7 @@ export class ReportGenerator {
             .from('seeding_plans')
             .select(`
         *,
-        crops (name, variety)
+        crops:crop_id (name, variety)
       `)
             .eq('farm_id', context.farmId)
             .gte('seeding_date', startDate)
@@ -489,7 +490,8 @@ export class ReportGenerator {
             .select(`
         *,
         plant_batches (
-          crops (name, variety)
+          crop_id,
+          crops:crop_id (name, variety)
         )
       `)
             .eq('farm_id', context.farmId)
@@ -584,7 +586,8 @@ export class ReportGenerator {
           quantity,
           seeded_date,
           planted_date,
-          crops (name, variety, days_to_harvest)
+          crop_id,
+          crops:crop_id (name, variety, days_to_harvest)
         )
       `)
             .eq('farm_id', context.farmId)
@@ -594,8 +597,8 @@ export class ReportGenerator {
             .from('plant_batches')
             .select(`
         *,
-        crops (name, variety, days_to_harvest),
-        towers (position)
+        crops:crop_id (name, variety, days_to_harvest),
+        towers:tower_id (position)
       `)
             .eq('farm_id', context.farmId)
             .eq('status', 'planted')
@@ -705,7 +708,7 @@ export class ReportGenerator {
             .from('plant_batches')
             .select(`
         *,
-        crops (name, variety, category)
+        crops:crop_id (name, variety, category)
       `)
             .eq('farm_id', context.farmId)
             .eq('status', 'harvested')
@@ -715,7 +718,7 @@ export class ReportGenerator {
             .from('plant_batches')
             .select(`
         *,
-        crops (name, variety, category)
+        crops:crop_id (name, variety, category)
       `)
             .eq('farm_id', context.farmId)
             .in('status', ['seeded', 'germinating', 'spacing', 'ready_to_plant', 'planted']);

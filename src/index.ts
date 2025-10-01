@@ -42,13 +42,13 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: "get_towers",
-        description: "Get tower information for a farm",
+        description: "Get tower information and counts for a farm. Use this for questions about how many towers, tower status counts, or tower positions. Returns basic tower data without crop details.",
         inputSchema: {
           type: "object",
           properties: {
             farmId: { type: "string", description: "The farm ID" },
-            status: { 
-              type: "string", 
+            status: {
+              type: "string",
               enum: ["empty", "growing", "ready_harvest", "maintenance"],
               description: "Filter by tower status (optional)"
             }
