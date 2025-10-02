@@ -1,727 +1,195 @@
 #!/usr/bin/env node
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
-import { CallToolRequestSchema, ListToolsRequestSchema, } from "@modelcontextprotocol/sdk/types.js";
 import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
-import { ReportGenerator } from './reports/generator.js';
-// Load environment variables
-dotenv.config();
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { CallToolRequestSchema, ListToolsRequestSchema, } from '@modelcontextprotocol/sdk/types.js';
+// --------------------
+// Supabase Setup
+// --------------------
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+// --------------------
+// Authentication Middleware
+// --------------------
+async function authenticateUser(token) {
+    // Check if token is the service key (for n8n and other services)
+    if (token === supabaseServiceKey) {
+        return {
+            email: 'n8n-service',
+            farmId: 'system',
+            role: 'service',
+        };
+    }
+    // Otherwise, verify it as a user JWT token
+    const { data, error } = await supabaseAdmin.auth.getUser(token);
+    if (error || !data.user) {
+        throw new Error('Invalid authentication token');
+    }
+    return {
+        email: data.user.email,
+        userId: data.user.id,
+        role: 'user',
+    };
+}
+// Middleware to extract and validate Bearer token
+async function authMiddleware(req, res, next) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        res.status(401).json({ error: 'Missing or invalid Authorization header' });
+        return;
+    }
+    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    try {
+        const user = await authenticateUser(token);
+        req.user = user;
+        next();
+    }
+    catch (error) {
+        res.status(401).json({ error: 'Authentication failed' });
+        return;
+    }
+}
+// --------------------
+// Express Setup
+// --------------------
 const app = express();
 app.use(cors());
 app.use(express.json());
-const PORT = process.env.PORT || 3010;
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
-    console.error("Missing Supabase credentials in environment variables");
-    process.exit(1);
-}
-// Service client for admin operations
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-function extractAccessToken(req) {
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-        return authHeader.substring(7);
-    }
-    const tokenParam = req.query.access_token;
-    if (typeof tokenParam === 'string' && tokenParam.trim().length > 0) {
-        return tokenParam;
-    }
-    if (Array.isArray(tokenParam)) {
-        const firstValid = tokenParam.find((value) => typeof value === 'string' && value.trim().length > 0);
-        if (firstValid && typeof firstValid === 'string') {
-            return firstValid;
+// --------------------
+// MCP Server + Tools
+// --------------------
+const mcpServer = new Server({ name: 'sage-mcp', version: '1.0.0' }, { capabilities: { tools: {} } });
+// Store active SSE transports by session ID so POST handlers can route messages
+const sseTransports = {};
+// List available tools
+mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
+    return {
+        tools: [
+            {
+                name: 'get_towers',
+                description: 'Get tower information',
+                inputSchema: { type: 'object', properties: {} },
+            },
+            {
+                name: 'get_seed_inventory',
+                description: 'Get seed inventory',
+                inputSchema: { type: 'object', properties: {} },
+            },
+            {
+                name: 'get_farm_stats',
+                description: 'Get quick statistics about the farm',
+                inputSchema: { type: 'object', properties: {} },
+            },
+        ],
+    };
+});
+// Handle tool calls
+mcpServer.setRequestHandler(CallToolRequestSchema, async (req) => {
+    const { name } = req.params;
+    switch (name) {
+        case 'get_towers': {
+            const { data, error } = await supabaseAdmin.from('towers').select('*');
+            if (error)
+                throw error;
+            return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
         }
-    }
-    return null;
-}
-// Middleware to verify JWT and extract user context
-async function authenticateUser(token) {
-    if (!token) {
-        return null;
-    }
-    try {
-        // Verify the JWT token with Supabase
-        const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-        if (error || !user) {
-            console.error("Auth error:", error);
-            return null;
+        case 'get_seed_inventory': {
+            const { data, error } = await supabaseAdmin.from('seeds').select('*');
+            if (error)
+                throw error;
+            return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
         }
-        // Get user's profile and farm information
-        const { data: profile, error: profileError } = await supabaseAdmin
-            .from('profiles')
-            .select('*, farms(*)')
-            .eq('id', user.id)
-            .single();
-        if (profileError || !profile) {
-            console.error("Profile error:", profileError);
-            return null;
-        }
-        return {
-            userId: user.id,
-            farmId: profile.farm_id,
-            email: profile.email || user.email || '',
-            role: profile.role || 'viewer'
-        };
-    }
-    catch (error) {
-        console.error("Auth error:", error);
-        return null;
-    }
-}
-// Create MCP server for each connection
-function createMCPServer(userContext) {
-    const server = new Server({
-        name: "sproutify-farm-mcp",
-        version: "0.1.0",
-    }, {
-        capabilities: {
-            tools: {},
-        },
-    });
-    // Create a scoped Supabase client for this user's farm
-    const scopedSupabase = createClient(supabaseUrl, supabaseServiceKey);
-    // Handle tool listing
-    server.setRequestHandler(ListToolsRequestSchema, async () => {
-        return {
-            tools: [
-                {
-                    name: "get_towers",
-                    description: "Get tower information and counts. Use this when user asks about: how many towers, tower status, tower count, towers ready to harvest, empty towers.",
-                    inputSchema: {
-                        type: "object",
-                        properties: {
-                            status: {
-                                type: "string",
-                                enum: ["empty", "growing", "ready_harvest", "maintenance"],
-                                description: "Filter by tower status (optional)"
-                            }
-                        }
-                    }
-                },
-                {
-                    name: "get_crop_plans",
-                    description: "Get seeding and spacing plans. Use this when user asks about: seeding plans, what's been seeded, planting schedule, spacing plans, upcoming plantings, what was planted.",
-                    inputSchema: {
-                        type: "object",
-                        properties: {
-                            startDate: { type: "string", description: "Start date (ISO format, optional)" },
-                            endDate: { type: "string", description: "End date (ISO format, optional)" }
-                        }
-                    }
-                },
-                {
-                    name: "get_seed_inventory",
-                    description: "Get seed inventory for your farm",
-                    inputSchema: {
-                        type: "object",
-                        properties: {
-                            lowStockOnly: { type: "boolean", description: "Only show low stock items (optional)" }
-                        }
-                    }
-                },
-                {
-                    name: "create_seeding_plan",
-                    description: "Create a new seeding plan",
-                    inputSchema: {
-                        type: "object",
-                        properties: {
-                            weekStartDate: { type: "string", description: "Week start date (ISO format)" },
-                            seedingDate: { type: "string", description: "Seeding date (ISO format)" },
-                            cropId: { type: "string", description: "The crop ID" },
-                            quantity: { type: "number", description: "Number of seeds" },
-                            notes: { type: "string", description: "Optional notes" }
-                        },
-                        required: ["weekStartDate", "seedingDate", "cropId", "quantity"]
-                    }
-                },
-                {
-                    name: "get_farm_info",
-                    description: "Get information about your farm",
-                    inputSchema: {
-                        type: "object",
-                        properties: {}
-                    }
-                },
-                {
-                    name: "get_spray_schedule",
-                    description: "Get spray schedules and applications for your farm",
-                    inputSchema: {
-                        type: "object",
-                        properties: {
-                            upcomingOnly: { type: "boolean", description: "Only show upcoming schedules (optional)" },
-                            startDate: { type: "string", description: "Start date filter (ISO format, optional)" },
-                            endDate: { type: "string", description: "End date filter (ISO format, optional)" }
-                        }
-                    }
-                },
-                {
-                    name: "get_nutrients",
-                    description: "Get nutrient data and EC/pH readings. Use this when user asks about: pH, EC, nutrient levels, nutrient readings, solution levels, water chemistry.",
-                    inputSchema: {
-                        type: "object",
-                        properties: {
-                            towerId: { type: "string", description: "Filter by specific tower (optional)" },
-                            limit: { type: "number", description: "Limit number of recent readings (default 10)" }
-                        }
-                    }
-                },
-                {
-                    name: "get_water_data",
-                    description: "Get water quality and usage data for your farm",
-                    inputSchema: {
-                        type: "object",
-                        properties: {
-                            dataType: {
-                                type: "string",
-                                enum: ["quality", "usage", "both"],
-                                description: "Type of water data to retrieve (default: both)"
-                            },
-                            limit: { type: "number", description: "Limit number of recent readings (default 10)" }
-                        }
-                    }
-                },
-                {
-                    name: "generate_report",
-                    description: "Generate a printable report for your farm",
-                    inputSchema: {
-                        type: "object",
-                        properties: {
-                            reportType: {
-                                type: "string",
-                                enum: ["tower_status", "seed_inventory", "weekly_planning", "harvest", "production_summary"],
-                                description: "Type of report to generate"
-                            },
-                            dateRange: {
-                                type: "object",
-                                properties: {
-                                    start: { type: "string", description: "Start date (ISO format)" },
-                                    end: { type: "string", description: "End date (ISO format)" }
-                                },
-                                description: "Optional date range for the report"
-                            }
-                        },
-                        required: ["reportType"]
-                    }
-                }
-            ]
-        };
-    });
-    // Handle tool execution
-    server.setRequestHandler(CallToolRequestSchema, async (request) => {
-        const { name, arguments: args } = request.params;
-        const farmId = userContext.farmId; // Always use the authenticated user's farm
-        try {
-            switch (name) {
-                case "get_farm_info": {
-                    const { data, error } = await scopedSupabase
-                        .from('farms')
-                        .select('*')
-                        .eq('id', farmId)
-                        .single();
-                    if (error)
-                        throw error;
-                    return {
-                        content: [
-                            {
-                                type: "text",
-                                text: `Farm: ${data.farm_name}\nLocation: ${data.city}, ${data.state}, ${data.country}\nTowers: ${data.number_of_towers || 0}\nStatus: ${data.status}`
-                            }
-                        ]
-                    };
-                }
-                case "get_towers": {
-                    const status = args?.status;
-                    let query = scopedSupabase
-                        .from('towers')
-                        .select('*')
-                        .eq('farm_id', farmId);
-                    if (status) {
-                        query = query.eq('status', status);
-                    }
-                    const { data, error } = await query;
-                    if (error)
-                        throw error;
-                    if (!data || data.length === 0) {
-                        return {
-                            content: [
-                                {
-                                    type: "text",
-                                    text: `You have no towers set up yet. Add towers to your farm to get started with vertical farming!`
-                                }
-                            ]
-                        };
-                    }
-                    // Count by status for summary
-                    const statusCounts = data.reduce((acc, tower) => {
-                        acc[tower.status] = (acc[tower.status] || 0) + 1;
-                        return acc;
-                    }, {});
-                    return {
-                        content: [
-                            {
-                                type: "text",
-                                text: `You have ${data.length} tower${data.length === 1 ? '' : 's'}:\n\n${Object.entries(statusCounts).map(([s, count]) => `• ${count} ${s.replace('_', ' ')}`).join('\n')}`
-                            }
-                        ]
-                    };
-                }
-                case "get_crop_plans": {
-                    const startDate = args?.startDate;
-                    const endDate = args?.endDate;
-                    let seedingQuery = scopedSupabase
-                        .from('seeding_plans')
-                        .select(`
-              *,
-              crops:crop_id (name, variety)
-            `)
-                        .eq('farm_id', farmId);
-                    if (startDate) {
-                        seedingQuery = seedingQuery.gte('seeding_date', startDate);
-                    }
-                    if (endDate) {
-                        seedingQuery = seedingQuery.lte('seeding_date', endDate);
-                    }
-                    const { data: seedingPlans, error: seedingError } = await seedingQuery;
-                    if (seedingError)
-                        throw seedingError;
-                    // Get spacing plans too
-                    const { data: spacingPlans, error: spacingError } = await scopedSupabase
-                        .from('spacing_plans')
-                        .select('*')
-                        .eq('farm_id', farmId);
-                    if (spacingError)
-                        throw spacingError;
-                    if ((!seedingPlans || seedingPlans.length === 0) && (!spacingPlans || spacingPlans.length === 0)) {
-                        return {
-                            content: [
-                                {
-                                    type: "text",
-                                    text: `You don't have any seeding or spacing plans yet. Create a plan to schedule your planting activities!`
-                                }
-                            ]
-                        };
-                    }
-                    return {
-                        content: [
-                            {
-                                type: "text",
-                                text: JSON.stringify({
-                                    seeding: seedingPlans,
-                                    spacing: spacingPlans
-                                }, null, 2)
-                            }
-                        ]
-                    };
-                }
-                case "get_seed_inventory": {
-                    const lowStockOnly = args?.lowStockOnly;
-                    let query = scopedSupabase
-                        .from('seeds')
-                        .select(`
-              *,
-              crops:crop_id (name, variety),
-              vendors:vendor_id (name, contact_email)
-            `)
-                        .eq('farm_id', farmId);
-                    if (lowStockOnly) {
-                        query = query.lt('current_quantity', 100);
-                    }
-                    const { data, error } = await query;
-                    if (error)
-                        throw error;
-                    if (!data || data.length === 0) {
-                        return {
-                            content: [
-                                {
-                                    type: "text",
-                                    text: lowStockOnly
-                                        ? `No low stock items - your seed inventory looks good!`
-                                        : `You don't have any seeds in inventory yet. Add seeds to start planning your crops!`
-                                }
-                            ]
-                        };
-                    }
-                    return {
-                        content: [
-                            {
-                                type: "text",
-                                text: JSON.stringify(data, null, 2)
-                            }
-                        ]
-                    };
-                }
-                case "create_seeding_plan": {
-                    if (!args || typeof args !== 'object') {
-                        throw new Error("Missing arguments");
-                    }
-                    const params = args;
-                    // Check user role for write permissions
-                    if (userContext.role === 'viewer') {
-                        throw new Error("You don't have permission to create seeding plans");
-                    }
-                    const { data, error } = await scopedSupabase
-                        .from('seeding_plans')
-                        .insert({
-                        farm_id: farmId,
-                        week_start_date: params.weekStartDate,
-                        seeding_date: params.seedingDate,
-                        crop_id: params.cropId,
-                        quantity: params.quantity,
-                        notes: params.notes
-                    })
-                        .select()
-                        .single();
-                    if (error)
-                        throw error;
-                    return {
-                        content: [
-                            {
-                                type: "text",
-                                text: `Seeding plan created successfully for ${params.quantity} seeds on ${params.seedingDate}`
-                            }
-                        ]
-                    };
-                }
-                case "get_spray_schedule": {
-                    const upcomingOnly = args?.upcomingOnly;
-                    const startDate = args?.startDate;
-                    const endDate = args?.endDate;
-                    let query = scopedSupabase
-                        .from('spray_schedules')
-                        .select(`
-              *,
-              spray_products:product_id (name, active_ingredient, application_rate)
-            `)
-                        .eq('farm_id', farmId);
-                    if (upcomingOnly) {
-                        query = query.gte('scheduled_date', new Date().toISOString());
-                    }
-                    if (startDate) {
-                        query = query.gte('scheduled_date', startDate);
-                    }
-                    if (endDate) {
-                        query = query.lte('scheduled_date', endDate);
-                    }
-                    query = query.order('scheduled_date', { ascending: true });
-                    const { data, error } = await query;
-                    if (error)
-                        throw error;
-                    if (!data || data.length === 0) {
-                        return {
-                            content: [
-                                {
-                                    type: "text",
-                                    text: upcomingOnly
-                                        ? `No upcoming spray schedules. Your farm is all set!`
-                                        : `No spray schedules found. Add spray schedules to manage your pest and disease prevention.`
-                                }
-                            ]
-                        };
-                    }
-                    return {
-                        content: [
-                            {
-                                type: "text",
-                                text: JSON.stringify(data, null, 2)
-                            }
-                        ]
-                    };
-                }
-                case "get_nutrients": {
-                    const towerId = args?.towerId;
-                    const limit = args?.limit || 10;
-                    let query = scopedSupabase
-                        .from('nutrient_readings')
-                        .select(`
-              *,
-              towers:tower_id (position)
-            `)
-                        .eq('farm_id', farmId);
-                    if (towerId) {
-                        query = query.eq('tower_id', towerId);
-                    }
-                    query = query
-                        .order('reading_date', { ascending: false })
-                        .limit(limit);
-                    const { data, error } = await query;
-                    if (error)
-                        throw error;
-                    if (!data || data.length === 0) {
-                        return {
-                            content: [
-                                {
-                                    type: "text",
-                                    text: `No nutrient readings found. Start recording EC and pH levels to monitor your nutrient solution!`
-                                }
-                            ]
-                        };
-                    }
-                    return {
-                        content: [
-                            {
-                                type: "text",
-                                text: JSON.stringify(data, null, 2)
-                            }
-                        ]
-                    };
-                }
-                case "get_water_data": {
-                    const dataType = args?.dataType || 'both';
-                    const limit = args?.limit || 10;
-                    const results = {};
-                    if (dataType === 'quality' || dataType === 'both') {
-                        const { data: qualityData, error: qualityError } = await scopedSupabase
-                            .from('water_quality')
-                            .select('*')
-                            .eq('farm_id', farmId)
-                            .order('test_date', { ascending: false })
-                            .limit(limit);
-                        if (qualityError)
-                            throw qualityError;
-                        results.quality = qualityData;
-                    }
-                    if (dataType === 'usage' || dataType === 'both') {
-                        const { data: usageData, error: usageError } = await scopedSupabase
-                            .from('water_usage')
-                            .select('*')
-                            .eq('farm_id', farmId)
-                            .order('usage_date', { ascending: false })
-                            .limit(limit);
-                        if (usageError)
-                            throw usageError;
-                        results.usage = usageData;
-                    }
-                    const hasData = (results.quality && results.quality.length > 0) ||
-                        (results.usage && results.usage.length > 0);
-                    if (!hasData) {
-                        return {
-                            content: [
-                                {
-                                    type: "text",
-                                    text: `No water data found. Start tracking water quality and usage to optimize your farm operations!`
-                                }
-                            ]
-                        };
-                    }
-                    return {
-                        content: [
-                            {
-                                type: "text",
-                                text: JSON.stringify(results, null, 2)
-                            }
-                        ]
-                    };
-                }
-                case "generate_report": {
-                    if (!args || typeof args !== 'object') {
-                        throw new Error("Missing arguments");
-                    }
-                    const params = args;
-                    const reportType = params.reportType;
-                    const dateRange = params.dateRange;
-                    // Get farm info for the report context
-                    const { data: farmData, error: farmError } = await scopedSupabase
-                        .from('farms')
-                        .select('farm_name')
-                        .eq('id', farmId)
-                        .single();
-                    if (farmError)
-                        throw farmError;
-                    const reportGenerator = new ReportGenerator(scopedSupabase);
-                    const context = {
-                        farmId,
-                        farmName: farmData.farm_name,
-                        userEmail: userContext.email,
-                        reportType: reportType.replace('_', ' ').toUpperCase(),
-                        dateRange
-                    };
-                    let htmlReport;
-                    switch (reportType) {
-                        case 'tower_status':
-                            htmlReport = await reportGenerator.generateTowerStatusReport(context);
-                            break;
-                        case 'seed_inventory':
-                            htmlReport = await reportGenerator.generateSeedInventoryReport(context);
-                            break;
-                        case 'weekly_planning':
-                            htmlReport = await reportGenerator.generateWeeklyPlanningReport(context);
-                            break;
-                        case 'harvest':
-                            htmlReport = await reportGenerator.generateHarvestReport(context);
-                            break;
-                        case 'production_summary':
-                            htmlReport = await reportGenerator.generateProductionSummaryReport(context);
-                            break;
-                        default:
-                            throw new Error(`Unknown report type: ${reportType}`);
-                    }
-                    return {
-                        content: [
-                            {
-                                type: "text",
-                                text: `Report generated successfully! The HTML report is ready for display.`
-                            },
-                            {
-                                type: "text",
-                                text: htmlReport
-                            }
-                        ]
-                    };
-                }
-                default:
-                    throw new Error(`Unknown tool: ${name}`);
-            }
-        }
-        catch (error) {
-            let detail;
-            if (error instanceof Error && error.message) {
-                detail = error.message;
-            }
-            else if (typeof error === 'object' && error !== null) {
-                try {
-                    detail = JSON.stringify(error, null, 2);
-                }
-                catch (_jsonError) {
-                    detail = String(error);
-                }
-            }
-            else {
-                detail = String(error);
-            }
+        case 'get_farm_stats': {
+            const { count: towerCount } = await supabaseAdmin
+                .from('towers')
+                .select('*', { count: 'exact', head: true });
+            const { count: seedCount } = await supabaseAdmin
+                .from('seeds')
+                .select('*', { count: 'exact', head: true });
             return {
                 content: [
                     {
-                        type: "text",
-                        text: `Error: ${detail}`
-                    }
-                ]
+                        type: 'text',
+                        text: `Farm Stats:\n- Towers: ${towerCount}\n- Seeds: ${seedCount}`,
+                    },
+                ],
             };
         }
-    });
-    return server;
-}
-const activeSessions = new Map();
-// SSE endpoint for MCP
-app.get('/mcp/sse', async (req, res) => {
-    const token = extractAccessToken(req);
-    const userContext = await authenticateUser(token);
-    if (!userContext) {
-        return res.status(401).json({ error: 'Unauthorized' });
-    }
-    console.log(`MCP connection from user ${userContext.email} for farm ${userContext.farmId}`);
-    const transport = new SSEServerTransport('/mcp/sse', res);
-    const sessionId = transport.sessionId;
-    const server = createMCPServer(userContext);
-    activeSessions.set(sessionId, { transport, user: userContext });
-    transport.onclose = () => {
-        activeSessions.delete(sessionId);
-    };
-    try {
-        await server.connect(transport);
-        console.log(`Established MCP SSE session ${sessionId}`);
-    }
-    catch (error) {
-        activeSessions.delete(sessionId);
-        console.error('Failed to establish MCP SSE session:', error);
-        if (!res.headersSent) {
-            res.status(500).json({ error: 'Failed to establish MCP session' });
-        }
+        default:
+            return { content: [{ type: 'text', text: `Unknown tool: ${name}` }] };
     }
 });
-app.post('/mcp/sse', async (req, res) => {
-    const rawSessionId = req.query.sessionId;
-    const sessionId = Array.isArray(rawSessionId) ? rawSessionId[0] : rawSessionId;
-    if (!sessionId || typeof sessionId !== 'string') {
-        return res.status(400).json({ error: 'Missing sessionId' });
-    }
-    const session = activeSessions.get(sessionId);
-    if (!session) {
-        return res.status(404).json({ error: 'Session not found' });
-    }
-    const token = extractAccessToken(req);
-    const userContext = await authenticateUser(token);
-    if (!userContext || userContext.userId !== session.user.userId) {
-        return res.status(403).json({ error: 'Forbidden' });
-    }
+// --------------------
+// MCP SSE Transport
+// --------------------
+app.get('/mcp', authMiddleware, async (_req, res) => {
     try {
-        await session.transport.handlePostMessage(req, res, req.body);
-    }
-    catch (error) {
-        console.error('Error handling MCP message:', error);
-        if (!res.headersSent) {
-            res.status(500).json({ error: 'Failed to process MCP message' });
-        }
-    }
-});
-// Health check endpoint
-app.get('/health', (req, res) => {
-    res.json({ status: 'healthy', service: 'sproutify-farm-mcp' });
-});
-// Direct report generation endpoint
-app.post('/reports/generate', async (req, res) => {
-    const userContext = await authenticateUser(extractAccessToken(req));
-    if (!userContext) {
-        return res.status(401).json({ error: 'Unauthorized' });
-    }
-    try {
-        const { reportType, dateRange } = req.body;
-        if (!reportType) {
-            return res.status(400).json({ error: 'Report type is required' });
-        }
-        // Get farm info
-        const { data: farmData, error: farmError } = await supabaseAdmin
-            .from('farms')
-            .select('farm_name')
-            .eq('id', userContext.farmId)
-            .single();
-        if (farmError)
-            throw farmError;
-        const reportGenerator = new ReportGenerator(supabaseAdmin);
-        const context = {
-            farmId: userContext.farmId,
-            farmName: farmData.farm_name,
-            userEmail: userContext.email,
-            reportType: reportType.replace('_', ' ').toUpperCase(),
-            dateRange
+        const transport = new SSEServerTransport('/mcp/messages', res);
+        const sessionId = transport.sessionId;
+        sseTransports[sessionId] = transport;
+        transport.onclose = () => {
+            delete sseTransports[sessionId];
         };
-        let htmlReport;
-        switch (reportType) {
-            case 'tower_status':
-                htmlReport = await reportGenerator.generateTowerStatusReport(context);
-                break;
-            case 'seed_inventory':
-                htmlReport = await reportGenerator.generateSeedInventoryReport(context);
-                break;
-            case 'weekly_planning':
-                htmlReport = await reportGenerator.generateWeeklyPlanningReport(context);
-                break;
-            case 'harvest':
-                htmlReport = await reportGenerator.generateHarvestReport(context);
-                break;
-            case 'production_summary':
-                htmlReport = await reportGenerator.generateProductionSummaryReport(context);
-                break;
-            default:
-                return res.status(400).json({ error: `Unknown report type: ${reportType}` });
-        }
-        // Send HTML response
-        res.setHeader('Content-Type', 'text/html');
-        res.send(htmlReport);
+        await mcpServer.connect(transport);
     }
     catch (error) {
-        console.error('Report generation error:', error);
-        res.status(500).json({ error: 'Failed to generate report' });
+        console.error('Error establishing MCP SSE connection:', error);
+        if (!res.headersSent) {
+            res.status(500).send('Failed to establish MCP SSE connection');
+        }
     }
 });
-// Start the server
-app.listen(PORT, () => {
-    console.log(`Sproutify Farm MCP server (for Sage) running on port ${PORT}`);
-    console.log(`Health check: http://localhost:${PORT}/health`);
-    console.log(`MCP SSE endpoint: http://localhost:${PORT}/mcp/sse`);
-    console.log(`Report generator: http://localhost:${PORT}/reports/generate`);
+app.post('/mcp/messages', authMiddleware, async (req, res) => {
+    const sessionId = req.query.sessionId;
+    if (!sessionId) {
+        res.status(400).json({ error: 'Missing sessionId' });
+        return;
+    }
+    const transport = sseTransports[sessionId];
+    if (!transport) {
+        res.status(404).json({ error: 'Session not found' });
+        return;
+    }
+    try {
+        await transport.handlePostMessage(req, res, req.body);
+    }
+    catch (error) {
+        console.error(`Error handling MCP message for session ${sessionId}:`, error);
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Failed to handle MCP message' });
+        }
+    }
+});
+// --------------------
+// REST Endpoint: /api/sage/chat (Proxy to n8n)
+// --------------------
+app.post('/api/sage/chat', authMiddleware, async (req, res) => {
+    try {
+        const n8nWebhookUrl = 'https://n8n.sproutify.app/webhook/17ae043b-e2f4-4794-8232-8db88dd9b063/chat';
+        const response = await fetch(n8nWebhookUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(req.body),
+        });
+        const data = await response.json();
+        res.json(data);
+    }
+    catch (err) {
+        console.error('Error proxying to n8n:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+// --------------------
+// Start Server
+// --------------------
+const PORT = Number.parseInt(process.env.PORT ?? '', 10) || 3010;
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`? Sage REST endpoint available at http://localhost:${PORT}/api/sage/chat`);
+    console.log(`? MCP SSE transport available at http://localhost:${PORT}/mcp (POST to /mcp/messages)`);
 });
