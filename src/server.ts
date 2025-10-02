@@ -128,12 +128,12 @@ function createMCPServer(userContext: UserContext) {
       tools: [
         {
           name: "get_towers",
-          description: "Get tower information for your farm",
+          description: "Get tower information and counts. Use this when user asks about: how many towers, tower status, tower count, towers ready to harvest, empty towers.",
           inputSchema: {
             type: "object",
             properties: {
-              status: { 
-                type: "string", 
+              status: {
+                type: "string",
                 enum: ["empty", "growing", "ready_harvest", "maintenance"],
                 description: "Filter by tower status (optional)"
               }
@@ -142,7 +142,7 @@ function createMCPServer(userContext: UserContext) {
         },
         {
           name: "get_crop_plans",
-          description: "Get seeding and spacing plans for your farm",
+          description: "Get seeding and spacing plans. Use this when user asks about: seeding plans, what's been seeded, planting schedule, spacing plans, upcoming plantings, what was planted.",
           inputSchema: {
             type: "object",
             properties: {
@@ -198,7 +198,7 @@ function createMCPServer(userContext: UserContext) {
         },
         {
           name: "get_nutrients",
-          description: "Get nutrient data and EC/pH readings for your farm",
+          description: "Get nutrient data and EC/pH readings. Use this when user asks about: pH, EC, nutrient levels, nutrient readings, solution levels, water chemistry.",
           inputSchema: {
             type: "object",
             properties: {
