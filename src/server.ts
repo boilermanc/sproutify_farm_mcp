@@ -9,6 +9,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+import { SimpleSage } from './services/simpleSage.js';
 
 // --------------------
 // Supabase Setup
@@ -187,24 +188,70 @@ app.post('/mcp/messages', authMiddleware, async (req: Request, res: Response) =>
 });
 
 // --------------------
-// REST Endpoint: /api/sage/chat (Proxy to n8n)
+// REST Endpoint: /api/sage/chat (Direct MCP Processing)
 // --------------------
+const sage = new SimpleSage();
+
 app.post('/api/sage/chat', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const n8nWebhookUrl = 'https://n8n.sproutify.app/webhook/17ae043b-e2f4-4794-8232-8db88dd9b063/chat';
+    const { message, farmId, sessionId, farmName = 'your farm' } = req.body;
 
-    const response = await fetch(n8nWebhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(req.body),
+    if (!message) {
+      res.status(400).json({ error: 'Message is required' });
+      return;
+    }
+
+    // Helper function to call MCP tools with farmId filtering
+    const getMCPData = async (toolName: string, params?: any) => {
+      switch (toolName) {
+        case 'get_farm_stats': {
+          let towerQuery = supabaseAdmin.from('towers').select('*', { count: 'exact', head: true });
+          let seedQuery = supabaseAdmin.from('seed_inventory').select('*', { count: 'exact', head: true });
+
+          if (farmId) {
+            towerQuery = towerQuery.eq('farm_id', farmId);
+            seedQuery = seedQuery.eq('farm_id', farmId);
+          }
+
+          const { count: towerCount } = await towerQuery;
+          const { count: seedCount } = await seedQuery;
+          return `Farm Stats:\n- Towers: ${towerCount || 0}\n- Seeds: ${seedCount || 0}`;
+        }
+        case 'get_towers': {
+          let query = supabaseAdmin.from('towers').select('*');
+          if (farmId) query = query.eq('farm_id', farmId);
+
+          const { data, error } = await query;
+          if (error) throw error;
+          return JSON.stringify(data, null, 2);
+        }
+        case 'get_seed_inventory': {
+          let query = supabaseAdmin.from('seed_inventory').select('*');
+          if (farmId) query = query.eq('farm_id', farmId);
+
+          const { data, error } = await query;
+          if (error) throw error;
+          return JSON.stringify(data, null, 2);
+        }
+        default:
+          throw new Error(`Unknown tool: ${toolName}`);
+      }
+    };
+
+    // Process message through SimpleSage
+    const response = await sage.processMessage(
+      message,
+      { farmName },
+      getMCPData
+    );
+
+    res.json({
+      response,
+      sessionId: sessionId || 'default',
+      timestamp: new Date().toISOString()
     });
-
-    const data = await response.json();
-    res.json(data);
   } catch (err: any) {
-    console.error('Error proxying to n8n:', err);
+    console.error('Error processing chat:', err);
     res.status(500).json({ error: err.message });
   }
 });
