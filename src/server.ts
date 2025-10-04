@@ -102,13 +102,92 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
         description: 'Get quick statistics about the farm',
         inputSchema: { type: 'object', properties: {} },
       },
+      {
+        name: 'get_nutrient_issues',
+        description: 'Get nutrient-related issues including pH and EC problems. Use this when asked about pH levels, EC readings, or nutrient imbalances.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', enum: ['open', 'resolved', 'monitoring'] },
+            limit: { type: 'number' }
+          }
+        },
+      },
+      {
+        name: 'get_water_issues',
+        description: 'Get water quality issues. Use this when asked about water quality, water problems, or reservoir issues.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', enum: ['open', 'resolved', 'monitoring'] },
+            limit: { type: 'number' }
+          }
+        },
+      },
+      {
+        name: 'get_plant_batches',
+        description: 'Get planting records and plant batches. Use this for questions about what\'s planted, planting dates, or crop varieties.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', enum: ['seeding', 'germinating', 'growing', 'ready_harvest', 'harvested'] },
+            limit: { type: 'number' }
+          }
+        },
+      },
+      {
+        name: 'get_spray_logs',
+        description: 'Get core spray application logs. Use this for questions about sprays applied or spray schedules. CORE spray only, NOT IPM module.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sprayType: { type: 'string', enum: ['pesticide', 'fungicide', 'nutrient', 'other'] },
+            limit: { type: 'number' }
+          }
+        },
+      },
+      {
+        name: 'get_seed_inventory',
+        description: 'Get seed inventory and stock levels. Use this for questions about available seeds, seed quantities, low stock alerts, or seed varieties.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            lowStock: { type: 'boolean' },
+            cropId: { type: 'string' }
+          }
+        },
+      },
+      {
+        name: 'get_seeding_plans',
+        description: 'Get seeding schedule and plans. Use this for questions about upcoming seeding activities, what to seed next, or seeding dates.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            startDate: { type: 'string' },
+            endDate: { type: 'string' },
+            limit: { type: 'number' }
+          }
+        },
+      },
+      {
+        name: 'get_spacing_plans',
+        description: 'Get spacing schedule and plans. Use this for questions about spacing activities, moving plants between trays, or spacing dates.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            startDate: { type: 'string' },
+            endDate: { type: 'string' },
+            limit: { type: 'number' }
+          }
+        },
+      },
     ],
   };
 });
 
 // Handle tool calls
 mcpServer.setRequestHandler(CallToolRequestSchema, async (req) => {
-  const { name } = req.params;
+  const { name, arguments: args } = req.params;
 
   switch (name) {
     case 'get_towers': {
@@ -136,6 +215,148 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (req) => {
           },
         ],
       };
+    }
+    case 'get_nutrient_issues': {
+      const status = (args as any)?.status;
+      const limit = (args as any)?.limit || 50;
+
+      let query = supabaseAdmin
+        .from('nutrient_issues')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (status) {
+        query = query.eq('status', status);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+    case 'get_water_issues': {
+      const status = (args as any)?.status;
+      const limit = (args as any)?.limit || 50;
+
+      let query = supabaseAdmin
+        .from('water_issues')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (status) {
+        query = query.eq('status', status);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+    case 'get_plant_batches': {
+      const status = (args as any)?.status;
+      const limit = (args as any)?.limit || 50;
+
+      let query = supabaseAdmin
+        .from('plant_batches')
+        .select('*, crops(*)')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (status) {
+        query = query.eq('status', status);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+    case 'get_spray_logs': {
+      const sprayType = (args as any)?.sprayType;
+      const limit = (args as any)?.limit || 50;
+
+      let query = supabaseAdmin
+        .from('spray_logs')
+        .select('*')
+        .order('application_date', { ascending: false })
+        .limit(limit);
+
+      if (sprayType) {
+        query = query.eq('spray_type', sprayType);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+    case 'get_seed_inventory': {
+      const lowStock = (args as any)?.lowStock;
+      const cropId = (args as any)?.cropId;
+
+      let query = supabaseAdmin
+        .from('seeds')
+        .select('*, crops(*), vendors(*)')
+        .order('crops(name)', { ascending: true });
+
+      if (cropId) {
+        query = query.eq('crop_id', cropId);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      // Filter for low stock if requested
+      let filteredData = data;
+      if (lowStock && data) {
+        filteredData = data.filter((seed: any) => seed.current_quantity < 100);
+      }
+
+      return { content: [{ type: 'text', text: JSON.stringify(filteredData, null, 2) }] };
+    }
+    case 'get_seeding_plans': {
+      const startDate = (args as any)?.startDate;
+      const endDate = (args as any)?.endDate;
+      const limit = (args as any)?.limit || 50;
+
+      let query = supabaseAdmin
+        .from('seeding_plans')
+        .select('*, crops(*), plant_batches(*)')
+        .order('seeding_date', { ascending: true })
+        .limit(limit);
+
+      if (startDate) {
+        query = query.gte('seeding_date', startDate);
+      }
+
+      if (endDate) {
+        query = query.lte('seeding_date', endDate);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+    case 'get_spacing_plans': {
+      const startDate = (args as any)?.startDate;
+      const endDate = (args as any)?.endDate;
+      const limit = (args as any)?.limit || 50;
+
+      let query = supabaseAdmin
+        .from('spacing_plans')
+        .select('*, plant_batches(*, crops(*))')
+        .order('spacing_date', { ascending: true })
+        .limit(limit);
+
+      if (startDate) {
+        query = query.gte('spacing_date', startDate);
+      }
+
+      if (endDate) {
+        query = query.lte('spacing_date', endDate);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     }
     default:
       return { content: [{ type: 'text', text: `Unknown tool: ${name}` }] };
@@ -228,6 +449,135 @@ app.post('/api/sage/chat', authMiddleware, async (req: Request, res: Response) =
         case 'get_seed_inventory': {
           let query = supabaseAdmin.from('seed_inventory').select('*');
           if (farmId) query = query.eq('farm_id', farmId);
+
+          const { data, error } = await query;
+          if (error) throw error;
+          return JSON.stringify(data, null, 2);
+        }
+        case 'get_nutrient_issues': {
+          const status = params?.status;
+          const limit = params?.limit || 50;
+
+          let query = supabaseAdmin
+            .from('nutrient_issues')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(limit);
+
+          if (farmId) query = query.eq('farm_id', farmId);
+          if (status) query = query.eq('status', status);
+
+          const { data, error } = await query;
+          if (error) throw error;
+          return JSON.stringify(data, null, 2);
+        }
+        case 'get_water_issues': {
+          const status = params?.status;
+          const limit = params?.limit || 50;
+
+          let query = supabaseAdmin
+            .from('water_issues')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(limit);
+
+          if (farmId) query = query.eq('farm_id', farmId);
+          if (status) query = query.eq('status', status);
+
+          const { data, error } = await query;
+          if (error) throw error;
+          return JSON.stringify(data, null, 2);
+        }
+        case 'get_plant_batches': {
+          const status = params?.status;
+          const limit = params?.limit || 50;
+
+          let query = supabaseAdmin
+            .from('plant_batches')
+            .select('*, crops(*)')
+            .order('created_at', { ascending: false })
+            .limit(limit);
+
+          if (farmId) query = query.eq('farm_id', farmId);
+          if (status) query = query.eq('status', status);
+
+          const { data, error } = await query;
+          if (error) throw error;
+          return JSON.stringify(data, null, 2);
+        }
+        case 'get_spray_logs': {
+          const sprayType = params?.sprayType;
+          const limit = params?.limit || 50;
+
+          let query = supabaseAdmin
+            .from('spray_logs')
+            .select('*')
+            .order('application_date', { ascending: false })
+            .limit(limit);
+
+          if (farmId) query = query.eq('farm_id', farmId);
+          if (sprayType) query = query.eq('spray_type', sprayType);
+
+          const { data, error } = await query;
+          if (error) throw error;
+          return JSON.stringify(data, null, 2);
+        }
+        case 'get_seed_inventory': {
+          const lowStock = params?.lowStock;
+          const cropId = params?.cropId;
+
+          let query = supabaseAdmin
+            .from('seeds')
+            .select('*, crops(*), vendors(*)')
+            .order('crops(name)', { ascending: true });
+
+          if (farmId) query = query.eq('farm_id', farmId);
+          if (cropId) query = query.eq('crop_id', cropId);
+
+          const { data, error } = await query;
+          if (error) throw error;
+
+          // Filter for low stock if requested
+          let filteredData = data;
+          if (lowStock && data) {
+            filteredData = data.filter((seed: any) => seed.current_quantity < 100);
+          }
+
+          return JSON.stringify(filteredData, null, 2);
+        }
+        case 'get_seeding_plans': {
+          const startDate = params?.startDate;
+          const endDate = params?.endDate;
+          const limit = params?.limit || 50;
+
+          let query = supabaseAdmin
+            .from('seeding_plans')
+            .select('*, crops(*), plant_batches(*)')
+            .order('seeding_date', { ascending: true })
+            .limit(limit);
+
+          if (farmId) query = query.eq('farm_id', farmId);
+          if (startDate) query = query.gte('seeding_date', startDate);
+          if (endDate) query = query.lte('seeding_date', endDate);
+
+          const { data, error } = await query;
+          if (error) throw error;
+          return JSON.stringify(data, null, 2);
+        }
+        case 'get_spacing_plans': {
+          const startDate = params?.startDate;
+          const endDate = params?.endDate;
+          const limit = params?.limit || 50;
+
+          let query = supabaseAdmin
+            .from('spacing_plans')
+            .select('*, plant_batches(*, crops(*))')
+            .order('spacing_date', { ascending: true })
+            .limit(limit);
+
+          if (farmId) query = query.eq('farm_id', farmId);
+          if (startDate) query = query.gte('spacing_date', startDate);
+          if (endDate) query = query.lte('spacing_date', endDate);
 
           const { data, error } = await query;
           if (error) throw error;
