@@ -245,7 +245,9 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
           (message.includes('plant') && (message.includes('what') || message.includes('current') || message.includes('batch'))) ||
           (message.includes('seed') && (message.includes('what') || message.includes('current') || message.includes('have'))) ||
           message.includes('growing')) {
+        console.log('[SimpleSage] Detected seeded/planted query, calling get_plant_batches');
         const data = await getMCPData('get_plant_batches', { limit: 20 });
+        console.log('[SimpleSage] Received plant batches data:', data?.substring(0, 200));
         const batches = JSON.parse(data);
         if (batches.length === 0) {
           return `📋 You don't have any active plant batches currently. Time to start seeding!`;

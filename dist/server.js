@@ -109,7 +109,7 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             {
                 name: 'get_plant_batches',
-                description: 'Get planting records and plant batches. Use this for questions about what\'s planted, planting dates, or crop varieties.',
+                description: 'Get current plant batches and seeded items. **Use this tool for questions like**: "What\'s seeded?", "What have we planted?", "What\'s currently growing?", "Show me plant batches", "What crops are in production?". Returns all active batches with crop details.',
                 inputSchema: {
                     type: 'object',
                     properties: {

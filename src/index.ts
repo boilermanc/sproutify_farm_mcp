@@ -92,7 +92,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "get_plant_batches",
-        description: "Get planting records and plant batches for a farm. Use this for questions about what's planted, planting dates, crop varieties, or plant batch status.",
+        description: "Get current plant batches and seeded items for a farm. **Use this tool for questions like**: 'What's seeded?', 'What have we planted?', 'What's currently growing?', 'Show me plant batches', 'What crops are in production?'. Returns all active batches with crop details, seeding dates, and current status.",
         inputSchema: {
           type: "object",
           properties: {
