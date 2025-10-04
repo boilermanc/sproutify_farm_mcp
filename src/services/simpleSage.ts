@@ -229,27 +229,28 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
         return `💧 **Current Water Issues:**\n\n${data}\n\n**Action needed:** Address water quality issues to prevent crop stress and disease.`;
       }
 
-      // Seeded/Planted items
-      if ((message.includes('seed') && message.includes('what')) ||
-          message.includes('planted') || message.includes('planting') ||
-          (message.includes('batch') && !message.includes('spacing'))) {
-        const data = await getMCPData('get_plant_batches', { limit: 20 });
-        const batches = JSON.parse(data);
-        if (batches.length === 0) {
-          return `📋 You don't have any active plant batches currently. Time to start seeding!`;
-        }
-        return `🌱 **Current Plant Batches:**\n\n${data}\n\n${batches.length} active batches tracked.`;
-      }
-
-      // Seeding schedule/plans
-      if ((message.includes('seed') && (message.includes('plan') || message.includes('schedule') || message.includes('next'))) ||
-          message.includes('seeding')) {
+      // Seeding schedule/plans - Check FIRST for future plans
+      if (message.includes('seeding') && (message.includes('plan') || message.includes('schedule') || message.includes('next') || message.includes('upcoming'))) {
         const data = await getMCPData('get_seeding_plans', { limit: 10 });
         const plans = JSON.parse(data);
         if (plans.length === 0) {
           return `📅 No upcoming seeding plans scheduled. Consider planning your next crops!`;
         }
         return `📅 **Upcoming Seeding Schedule:**\n\n${data}`;
+      }
+
+      // Seeded/Planted items - Current batches (check after seeding plans)
+      if (message.includes('seeded') ||
+          message.includes('planted') ||
+          (message.includes('plant') && (message.includes('what') || message.includes('current') || message.includes('batch'))) ||
+          (message.includes('seed') && (message.includes('what') || message.includes('current') || message.includes('have'))) ||
+          message.includes('growing')) {
+        const data = await getMCPData('get_plant_batches', { limit: 20 });
+        const batches = JSON.parse(data);
+        if (batches.length === 0) {
+          return `📋 You don't have any active plant batches currently. Time to start seeding!`;
+        }
+        return `🌱 **Current Plant Batches:**\n\n${data}\n\n${batches.length} active batches tracked.`;
       }
 
       // Spacing schedule/plans
