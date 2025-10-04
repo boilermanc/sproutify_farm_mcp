@@ -207,26 +207,95 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
     message: string,
     getMCPData: (tool: string, params?: any) => Promise<any>
   ): Promise<string | null> {
-    // Tower-related queries
-    if (message.includes('tower') || message.includes('how many')) {
-      try {
+    try {
+      // pH/EC/Nutrient issues
+      if (message.includes('ph') || message.includes('ec') ||
+          (message.includes('nutrient') && (message.includes('issue') || message.includes('problem') || message.includes('check')))) {
+        const data = await getMCPData('get_nutrient_issues', { status: 'open' });
+        const issues = JSON.parse(data);
+        if (issues.length === 0) {
+          return `✅ Great news! You have no open nutrient or pH/EC issues.\n\n**Reminder:** Check pH daily (ideal: 5.5-6.5) and EC weekly (varies by crop stage).`;
+        }
+        return `🧪 **Current Nutrient/pH/EC Issues:**\n\n${data}\n\n**Next steps:** Address these issues promptly to prevent nutrient lockout and optimize plant growth.`;
+      }
+
+      // Water issues
+      if (message.includes('water') && (message.includes('issue') || message.includes('problem') || message.includes('quality'))) {
+        const data = await getMCPData('get_water_issues', { status: 'open' });
+        const issues = JSON.parse(data);
+        if (issues.length === 0) {
+          return `✅ No open water quality issues! Keep monitoring regularly to maintain optimal growing conditions.`;
+        }
+        return `💧 **Current Water Issues:**\n\n${data}\n\n**Action needed:** Address water quality issues to prevent crop stress and disease.`;
+      }
+
+      // Seeded/Planted items
+      if ((message.includes('seed') && message.includes('what')) ||
+          message.includes('planted') || message.includes('planting') ||
+          (message.includes('batch') && !message.includes('spacing'))) {
+        const data = await getMCPData('get_plant_batches', { limit: 20 });
+        const batches = JSON.parse(data);
+        if (batches.length === 0) {
+          return `📋 You don't have any active plant batches currently. Time to start seeding!`;
+        }
+        return `🌱 **Current Plant Batches:**\n\n${data}\n\n${batches.length} active batches tracked.`;
+      }
+
+      // Seeding schedule/plans
+      if ((message.includes('seed') && (message.includes('plan') || message.includes('schedule') || message.includes('next'))) ||
+          message.includes('seeding')) {
+        const data = await getMCPData('get_seeding_plans', { limit: 10 });
+        const plans = JSON.parse(data);
+        if (plans.length === 0) {
+          return `📅 No upcoming seeding plans scheduled. Consider planning your next crops!`;
+        }
+        return `📅 **Upcoming Seeding Schedule:**\n\n${data}`;
+      }
+
+      // Spacing schedule/plans
+      if (message.includes('spacing') || (message.includes('space') && message.includes('plan'))) {
+        const data = await getMCPData('get_spacing_plans', { limit: 10 });
+        const plans = JSON.parse(data);
+        if (plans.length === 0) {
+          return `📏 No spacing activities scheduled currently.`;
+        }
+        return `📏 **Spacing Schedule:**\n\n${data}`;
+      }
+
+      // Spray logs
+      if (message.includes('spray') && !message.includes('ipm')) {
+        const data = await getMCPData('get_spray_logs', { limit: 10 });
+        const logs = JSON.parse(data);
+        if (logs.length === 0) {
+          return `🚿 No spray applications recorded yet.`;
+        }
+        return `🚿 **Recent Spray Applications:**\n\n${data}`;
+      }
+
+      // Seed inventory
+      if (message.includes('seed') && (message.includes('inventory') || message.includes('stock') || message.includes('low'))) {
+        const lowStockOnly = message.includes('low');
+        const data = await getMCPData('get_seed_inventory', { lowStock: lowStockOnly });
+        const inventory = JSON.parse(data);
+        if (lowStockOnly && inventory.length === 0) {
+          return `✅ All seed stocks are healthy (above 100 seeds)!`;
+        }
+        if (inventory.length === 0) {
+          return `📦 No seeds in inventory. Time to order!`;
+        }
+        return `📦 **Seed Inventory${lowStockOnly ? ' (Low Stock Items)' : ''}:**\n\n${data}`;
+      }
+
+      // Tower-related queries
+      if (message.includes('tower') || message.includes('how many')) {
         const data = await getMCPData('get_farm_stats');
-        return `📊 Based on your farm data:\n\n${data}`;
-      } catch (error) {
-        return "I'd love to check your tower status, but I'm having trouble connecting to your farm systems right now. Try again in a moment!";
+        return `📊 **Farm Statistics:**\n\n${data}`;
       }
+
+    } catch (error) {
+      return "I'm having trouble accessing your farm data right now. Please try again in a moment!";
     }
-    
-    // Inventory queries
-    if (message.includes('seed') && message.includes('inventory')) {
-      try {
-        const data = await getMCPData('get_seed_inventory');
-        return `📦 Your seed inventory:\n\n${data}`;
-      } catch (error) {
-        return "I couldn't access your inventory system right now. In the meantime, remember to keep at least 2 weeks of seeds on hand!";
-      }
-    }
-    
+
     return null;
   }
   
@@ -235,10 +304,14 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
 
 I can assist with:
 - **Pest & Disease Management** - "How do I get rid of aphids?"
-- **Nutrient Issues** - "Why are my leaves turning yellow?"
+- **Nutrient Issues** - "Why are my leaves turning yellow?" or "Check my pH levels"
 - **Environmental Control** - "What's the ideal temperature for lettuce?"
 - **Crop Information** - "How long does basil take to grow?"
-- **Your Farm Data** - "How many towers do I have?"
+- **Farm Data** - "How many towers do I have?" or "What's seeded?"
+- **Planning** - "What's my seeding schedule?" or "What needs spacing?"
+- **Inventory** - "What seeds are low in stock?"
+- **Water Quality** - "Any water issues?"
+- **Spray Logs** - "What sprays have been applied?"
 
 What would you like to know about?`;
   }
