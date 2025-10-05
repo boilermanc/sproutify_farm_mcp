@@ -30,6 +30,10 @@ export class SimpleSage {
         const cropResponse = this.checkCropQuestion(lowerMessage);
         if (cropResponse)
             return cropResponse;
+        // Check for report requests
+        const reportResponse = this.checkReportQuestion(lowerMessage);
+        if (reportResponse)
+            return reportResponse;
         // Check for farm data requests (if MCP function provided)
         if (getMCPData) {
             const dataResponse = await this.checkDataRequest(lowerMessage, getMCPData);
@@ -327,6 +331,57 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
         }
         return null;
     }
+    checkReportQuestion(message) {
+        if (message.includes('report') && (message.includes('what') || message.includes('can') || message.includes('run') || message.includes('generate') || message.includes('available'))) {
+            return `📊 **Available Printable Reports:**
+
+I can generate professional printable reports for you:
+
+**Inventory & Resources:**
+- **Seed Inventory Report** - Current stock levels, low stock alerts, reorder recommendations
+- **Chemical Inventory Report** - Chemical products, quantities, reorder alerts
+- **Tower Status Report** - Tower utilization, what's growing where, harvest readiness
+- **Vendor List Report** - Complete vendor directory with contact information
+
+**Production & Planning:**
+- **Seed Batch Report** - Details on specific batches (seeding dates, growth stages, timeline)
+- **Weekly Planning Report** - Upcoming seeding, spacing, and planting activities
+- **Harvest Report** - Ready to harvest now, upcoming harvest schedule (next 14 days)
+- **Production Summary Report** - 30-day harvest statistics, active pipeline, production by category
+
+**Quality & Compliance:**
+- **pH & EC Readings Report** - Nutrient monitoring history, out of range alerts
+- **Water Test Results Report** - Lab test history, water quality metrics
+- **Spray Applications Report** - Chemical application logs, spray history (90 days)
+
+**How to generate:**
+Ask me to create a specific report like "Generate seed inventory report" or "Create pH readings report" and I'll prepare a professional PDF-ready document for you!
+
+Which report would you like to see?`;
+        }
+        if (message.includes('report') && (message.includes('generate') || message.includes('create') || message.includes('make'))) {
+            return `📊 To generate a report, please specify which one you'd like:
+
+**Inventory:**
+- "Generate seed inventory report"
+- "Generate chemical inventory report"
+- "Generate vendor list report"
+
+**Production:**
+- "Create tower status report"
+- "Make harvest report"
+- "Generate weekly planning report"
+- "Create production summary report"
+
+**Quality:**
+- "Generate pH readings report"
+- "Create water test report"
+- "Generate spray applications report"
+
+Or ask "What reports can I run?" to see all available options!`;
+        }
+        return null;
+    }
     getHelpfulDefault() {
         return `I'm here to help with your vertical farm! 🌱
 
@@ -340,6 +395,7 @@ I can assist with:
 - **Inventory** - "What seeds are low in stock?"
 - **Water Quality** - "Any water issues?"
 - **Spray Logs** - "What sprays have been applied?"
+- **Reports** - "What reports can I run?" or "Generate seed inventory report"
 
 What would you like to know about?`;
     }

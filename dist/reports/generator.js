@@ -20,276 +20,307 @@ export class ReportGenerator {
   <style>
     @media print {
       .no-print { display: none; }
-      body { margin: 0; }
-      .report-container { 
-        width: 100%; 
+      body { margin: 0; padding: 0; }
+      .page-container {
+        width: 100%;
         max-width: none;
+        margin: 0;
         box-shadow: none;
       }
     }
-    
+
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
     }
-    
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-      background: #f5f5f5;
-      padding: 20px;
-      color: #333;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f8f9fa;
+      color: #212529;
+      line-height: 1.6;
     }
-    
-    .report-container {
-      max-width: 1000px;
+
+    .page-container {
+      max-width: 8.5in;
       margin: 0 auto;
       background: white;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-      border-radius: 8px;
-      overflow: hidden;
+      padding: 0.75in;
     }
-    
+
+    /* Header */
     .report-header {
-      background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-      color: white;
-      padding: 30px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    
-    .report-header h1 {
-      font-size: 28px;
-      font-weight: 600;
-      margin-bottom: 5px;
-    }
-    
-    .report-header .subtitle {
-      opacity: 0.9;
-      font-size: 14px;
-    }
-    
-    .report-header .logo {
-      font-size: 20px;
-      font-weight: bold;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    
-    .report-header .logo .icon {
-      width: 30px;
-      height: 30px;
-      background: white;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-    }
-    
-    .report-meta {
-      background: #f9fafb;
-      padding: 20px 30px;
-      border-bottom: 1px solid #e5e7eb;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 15px;
-    }
-    
-    .report-meta .meta-item {
-      display: flex;
-      flex-direction: column;
-    }
-    
-    .report-meta .meta-label {
-      font-size: 12px;
-      color: #6b7280;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 3px;
-    }
-    
-    .report-meta .meta-value {
-      font-size: 14px;
-      font-weight: 500;
-      color: #111827;
-    }
-    
-    .report-content {
-      padding: 30px;
-    }
-    
-    .report-section {
+      border-bottom: 3px solid #22c55e;
+      padding-bottom: 20px;
       margin-bottom: 30px;
     }
-    
-    .report-section h2 {
-      font-size: 20px;
-      color: #111827;
+
+    .farm-name {
+      font-size: 14px;
+      color: #6c757d;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+
+    .report-title {
+      font-size: 28px;
+      font-weight: 600;
+      color: #212529;
+      margin-bottom: 8px;
+    }
+
+    .report-date {
+      font-size: 14px;
+      color: #6c757d;
+    }
+
+    /* Content */
+    .report-content {
+      margin: 30px 0;
+    }
+
+    .section {
+      margin-bottom: 35px;
+    }
+
+    .section-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #212529;
       margin-bottom: 15px;
       padding-bottom: 8px;
-      border-bottom: 2px solid #22c55e;
+      border-bottom: 2px solid #e9ecef;
     }
-    
-    .report-section h3 {
+
+    .section-subtitle {
       font-size: 16px;
-      color: #374151;
-      margin-bottom: 10px;
-      margin-top: 15px;
+      font-weight: 500;
+      color: #495057;
+      margin: 20px 0 10px 0;
     }
-    
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 20px;
+      margin: 20px 0;
+    }
+
+    .stat-box {
+      border: 1px solid #dee2e6;
+      padding: 15px;
+      border-radius: 4px;
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 600;
+      color: #22c55e;
+      line-height: 1;
+      margin-bottom: 5px;
+    }
+
+    .stat-label {
+      font-size: 13px;
+      color: #6c757d;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Tables */
     table {
       width: 100%;
       border-collapse: collapse;
       margin: 15px 0;
+      font-size: 13px;
     }
-    
+
     th {
-      background: #f3f4f6;
-      padding: 12px;
+      background: #f8f9fa;
+      padding: 10px 12px;
       text-align: left;
       font-weight: 600;
-      font-size: 13px;
-      color: #374151;
-      border-bottom: 2px solid #e5e7eb;
-    }
-    
-    td {
-      padding: 12px;
-      border-bottom: 1px solid #f3f4f6;
-      font-size: 14px;
-    }
-    
-    tr:hover {
-      background: #fafafa;
-    }
-    
-    .status-badge {
-      display: inline-block;
-      padding: 4px 10px;
-      border-radius: 12px;
+      color: #495057;
+      border-bottom: 2px solid #dee2e6;
       font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #e9ecef;
+      color: #212529;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover {
+      background: #f8f9fa;
+    }
+
+    /* Status badges */
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 3px;
+      font-size: 11px;
       font-weight: 500;
       text-transform: uppercase;
+      letter-spacing: 0.3px;
     }
-    
-    .status-empty { background: #f3f4f6; color: #6b7280; }
-    .status-growing { background: #fef3c7; color: #92400e; }
-    .status-ready_harvest { background: #d1fae5; color: #065f46; }
-    .status-maintenance { background: #fee2e2; color: #991b1b; }
+
+    .badge-empty { background: #e9ecef; color: #495057; }
+    .badge-growing { background: #fff3cd; color: #856404; }
+    .badge-ready { background: #d4edda; color: #155724; }
+    .badge-maintenance { background: #f8d7da; color: #721c24; }
+    .badge-alert { background: #fff3cd; color: #856404; }
+    .badge-seeded { background: #dbeafe; color: #1e40af; }
+    .badge-germinating { background: #fce7f3; color: #9f1239; }
+    .badge-spacing { background: #e9d5ff; color: #6b21a8; }
+
+    /* Legacy status badge support */
+    .status-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .status-empty { background: #e9ecef; color: #495057; }
+    .status-growing { background: #fff3cd; color: #856404; }
+    .status-ready_harvest { background: #d4edda; color: #155724; }
+    .status-maintenance { background: #f8d7da; color: #721c24; }
     .status-seeded { background: #dbeafe; color: #1e40af; }
     .status-germinating { background: #fce7f3; color: #9f1239; }
     .status-spacing { background: #e9d5ff; color: #6b21a8; }
-    
+
+    /* Legacy stat grid support */
     .stat-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       gap: 20px;
       margin: 20px 0;
     }
-    
+
     .stat-card {
-      background: #f9fafb;
-      padding: 20px;
-      border-radius: 8px;
-      border: 1px solid #e5e7eb;
+      border: 1px solid #dee2e6;
+      padding: 15px;
+      border-radius: 4px;
     }
-    
-    .stat-value {
-      font-size: 32px;
+
+    /* Legacy report-section support */
+    .report-section {
+      margin-bottom: 35px;
+    }
+
+    .report-section h2 {
+      font-size: 18px;
       font-weight: 600;
-      color: #22c55e;
+      color: #212529;
+      margin-bottom: 15px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #e9ecef;
+    }
+
+    /* Alerts */
+    .alert {
+      padding: 15px;
+      margin: 15px 0;
+      border-left: 4px solid #ffc107;
+      background: #fff3cd;
+      border-radius: 4px;
+    }
+
+    .alert-title {
+      font-weight: 600;
       margin-bottom: 5px;
+      color: #856404;
     }
-    
-    .stat-label {
-      font-size: 14px;
-      color: #6b7280;
-    }
-    
+
+    /* Footer */
     .report-footer {
-      background: #f9fafb;
-      padding: 20px 30px;
-      border-top: 1px solid #e5e7eb;
+      border-top: 2px solid #e9ecef;
+      padding-top: 20px;
+      margin-top: 40px;
       text-align: center;
-      color: #6b7280;
       font-size: 12px;
+      color: #6c757d;
     }
-    
+
+    /* Print Button */
     .print-button {
+      position: fixed;
+      top: 20px;
+      right: 20px;
       background: #22c55e;
       color: white;
       border: none;
-      padding: 10px 20px;
+      padding: 12px 24px;
       border-radius: 6px;
       font-size: 14px;
-      cursor: pointer;
-      margin: 20px;
       font-weight: 500;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
+      transition: all 0.2s;
     }
-    
+
     .print-button:hover {
       background: #16a34a;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
     }
-    
+
+    /* Empty state */
     .empty-state {
       text-align: center;
-      padding: 40px;
-      color: #6b7280;
+      padding: 40px 20px;
+      color: #6c757d;
+      font-style: italic;
     }
-    
-    .chart-container {
-      margin: 20px 0;
-      padding: 20px;
-      background: #fafafa;
-      border-radius: 8px;
-    }
+
+    /* Utility classes */
+    .text-muted { color: #6c757d; }
+    .text-success { color: #22c55e; }
+    .text-danger { color: #dc3545; }
+    .text-warning { color: #ffc107; }
+    .font-bold { font-weight: 600; }
+    .text-center { text-align: center; }
+    .mb-0 { margin-bottom: 0; }
+    .mb-1 { margin-bottom: 10px; }
+    .mb-2 { margin-bottom: 20px; }
+    .mt-0 { margin-top: 0; }
+    .mt-1 { margin-top: 10px; }
+    .mt-2 { margin-top: 20px; }
   </style>
 </head>
 <body>
   <button onclick="window.print()" class="print-button no-print">🖨️ Print Report</button>
-  
-  <div class="report-container">
+
+  <div class="page-container">
+    <!-- Header -->
     <div class="report-header">
-      <div>
-        <h1>${title}</h1>
-        <div class="subtitle">${context.farmName}</div>
-      </div>
-      <div class="logo">
-        <div class="icon">🌱</div>
-        <span>Sproutify Sage</span>
-      </div>
+      <div class="farm-name">${context.farmName}</div>
+      <h1 class="report-title">${title}</h1>
+      <div class="report-date">${currentDate}</div>
     </div>
-    
-    <div class="report-meta">
-      <div class="meta-item">
-        <div class="meta-label">Report Date</div>
-        <div class="meta-value">${currentDate}</div>
-      </div>
-      <div class="meta-item">
-        <div class="meta-label">Report Type</div>
-        <div class="meta-value">${context.reportType}</div>
-      </div>
-      ${context.dateRange ? `
-      <div class="meta-item">
-        <div class="meta-label">Date Range</div>
-        <div class="meta-value">${new Date(context.dateRange.start).toLocaleDateString()} - ${new Date(context.dateRange.end).toLocaleDateString()}</div>
-      </div>
-      ` : ''}
-      <div class="meta-item">
-        <div class="meta-label">Generated By</div>
-        <div class="meta-value">Sproutify Sage</div>
-      </div>
-    </div>
-    
+
+    <!-- Content -->
     <div class="report-content">
       ${content}
     </div>
-    
+
+    <!-- Footer -->
     <div class="report-footer">
-      Generated by Sproutify Sage • ${new Date().toLocaleString()} • Confidential
+      Powered by Sproutify Sage © 2025
     </div>
   </div>
 </body>
@@ -809,5 +840,358 @@ export class ReportGenerator {
       </div>
     `;
         return this.generateHTMLTemplate('Production Summary Report', content, context);
+    }
+    // Spray Applications Report
+    async generateSprayApplicationsReport(context) {
+        const startDate = context.dateRange?.start || new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+        const endDate = context.dateRange?.end || new Date().toISOString();
+        const { data: sprayLogs, error } = await this.supabase
+            .from('core_spray_applications')
+            .select('*')
+            .eq('farm_id', context.farmId)
+            .gte('application_date', startDate)
+            .lte('application_date', endDate)
+            .order('application_date', { ascending: false });
+        if (error)
+            throw error;
+        const totalApplications = sprayLogs?.length || 0;
+        const sprayTypes = sprayLogs?.reduce((acc, log) => {
+            acc[log.spray_type] = (acc[log.spray_type] || 0) + 1;
+            return acc;
+        }, {}) || {};
+        const content = `
+      <div class="section">
+        <h2>Application Summary</h2>
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-value">${totalApplications}</div>
+            <div class="stat-label">Total Applications</div>
+          </div>
+          ${Object.entries(sprayTypes).map(([type, count]) => `
+          <div class="stat-box">
+            <div class="stat-value">${count}</div>
+            <div class="stat-label">${type.charAt(0).toUpperCase() + type.slice(1)}</div>
+          </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Application History</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Type</th>
+              <th>Product</th>
+              <th>Rate</th>
+              <th>Target</th>
+              <th>Applied By</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${sprayLogs && sprayLogs.length > 0 ? sprayLogs.map(log => `
+              <tr>
+                <td><strong>${new Date(log.application_date).toLocaleDateString()}</strong></td>
+                <td><span class="badge badge-${log.spray_type}">${log.spray_type}</span></td>
+                <td>${log.product_name || '-'}</td>
+                <td>${log.application_rate || '-'}</td>
+                <td>${log.target_pest || log.target_area || '-'}</td>
+                <td>${log.applied_by || '-'}</td>
+              </tr>
+            `).join('') : '<tr><td colspan="6" class="empty-state">No spray applications in selected period</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `;
+        return this.generateHTMLTemplate('Spray Applications Report', content, context);
+    }
+    // pH and EC Readings Report
+    async generateNutrientReadingsReport(context) {
+        const startDate = context.dateRange?.start || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        const endDate = context.dateRange?.end || new Date().toISOString();
+        const { data: readings, error } = await this.supabase
+            .from('nutrient_readings')
+            .select('*')
+            .eq('farm_id', context.farmId)
+            .gte('created_at', startDate)
+            .lte('created_at', endDate)
+            .order('created_at', { ascending: false });
+        if (error)
+            throw error;
+        const avgPH = readings?.reduce((sum, r) => sum + (r.ph_level || 0), 0) / (readings?.length || 1);
+        const avgEC = readings?.reduce((sum, r) => sum + (r.ec_level || 0), 0) / (readings?.length || 1);
+        const outOfRangePH = readings?.filter(r => r.ph_level < 5.5 || r.ph_level > 6.5).length || 0;
+        const totalReadings = readings?.length || 0;
+        const content = `
+      <div class="section">
+        <h2>Reading Summary</h2>
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-value">${totalReadings}</div>
+            <div class="stat-label">Total Readings</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">${avgPH.toFixed(2)}</div>
+            <div class="stat-label">Avg pH</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">${avgEC.toFixed(2)}</div>
+            <div class="stat-label">Avg EC</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">${outOfRangePH}</div>
+            <div class="stat-label">Out of Range pH</div>
+          </div>
+        </div>
+      </div>
+
+      ${outOfRangePH > 0 ? `
+      <div class="section">
+        <div class="alert">
+          <div class="alert-title">⚠️ pH Alert</div>
+          ${outOfRangePH} readings outside optimal range (5.5-6.5)
+        </div>
+      </div>
+      ` : ''}
+
+      <div class="section">
+        <h2>Reading History</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Date/Time</th>
+              <th>Tower</th>
+              <th>pH Level</th>
+              <th>EC Level</th>
+              <th>Temperature</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${readings && readings.length > 0 ? readings.map(reading => {
+            const isOutOfRange = reading.ph_level < 5.5 || reading.ph_level > 6.5;
+            return `
+              <tr>
+                <td><strong>${new Date(reading.created_at).toLocaleString()}</strong></td>
+                <td>${reading.tower_id || 'N/A'}</td>
+                <td ${isOutOfRange ? 'class="text-danger"' : ''}>${reading.ph_level?.toFixed(2) || '-'}</td>
+                <td>${reading.ec_level?.toFixed(2) || '-'}</td>
+                <td>${reading.water_temp ? reading.water_temp + '°F' : '-'}</td>
+                <td>${reading.notes || '-'}</td>
+              </tr>
+              `;
+        }).join('') : '<tr><td colspan="6" class="empty-state">No readings in selected period</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `;
+        return this.generateHTMLTemplate('pH & EC Readings Report', content, context);
+    }
+    // Water Test Results Report
+    async generateWaterTestReport(context) {
+        const { data: waterTests, error } = await this.supabase
+            .from('water_tests')
+            .select(`
+        *,
+        water_labs:lab_id (name, contact_email)
+      `)
+            .eq('farm_id', context.farmId)
+            .order('test_date', { ascending: false });
+        if (error)
+            throw error;
+        const totalTests = waterTests?.length || 0;
+        const latestTest = waterTests?.[0];
+        const content = `
+      <div class="section">
+        <h2>Test Summary</h2>
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-value">${totalTests}</div>
+            <div class="stat-label">Total Tests</div>
+          </div>
+          ${latestTest ? `
+          <div class="stat-box">
+            <div class="stat-value">${new Date(latestTest.test_date).toLocaleDateString()}</div>
+            <div class="stat-label">Latest Test</div>
+          </div>
+          ` : ''}
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Water Test History</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Test Date</th>
+              <th>Lab</th>
+              <th>pH</th>
+              <th>TDS</th>
+              <th>Hardness</th>
+              <th>Iron</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${waterTests && waterTests.length > 0 ? waterTests.map(test => `
+              <tr>
+                <td><strong>${new Date(test.test_date).toLocaleDateString()}</strong></td>
+                <td>${test.water_labs?.name || '-'}</td>
+                <td>${test.ph_level?.toFixed(2) || '-'}</td>
+                <td>${test.tds_ppm || '-'}</td>
+                <td>${test.hardness_ppm || '-'}</td>
+                <td>${test.iron_ppm || '-'}</td>
+                <td>${test.notes || '-'}</td>
+              </tr>
+            `).join('') : '<tr><td colspan="7" class="empty-state">No water tests found</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `;
+        return this.generateHTMLTemplate('Water Test Results Report', content, context);
+    }
+    // Vendor List Report
+    async generateVendorListReport(context) {
+        const { data: vendors, error } = await this.supabase
+            .from('vendors')
+            .select('*')
+            .eq('farm_id', context.farmId)
+            .order('vendor_name', { ascending: true });
+        if (error)
+            throw error;
+        const totalVendors = vendors?.length || 0;
+        const vendorsByType = vendors?.reduce((acc, vendor) => {
+            acc[vendor.type] = (acc[vendor.type] || 0) + 1;
+            return acc;
+        }, {}) || {};
+        const content = `
+      <div class="section">
+        <h2>Vendor Summary</h2>
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-value">${totalVendors}</div>
+            <div class="stat-label">Total Vendors</div>
+          </div>
+          ${Object.entries(vendorsByType).map(([type, count]) => `
+          <div class="stat-box">
+            <div class="stat-value">${count}</div>
+            <div class="stat-label">${type.charAt(0).toUpperCase() + type.slice(1)}</div>
+          </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Vendor Directory</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Vendor Name</th>
+              <th>Type</th>
+              <th>Contact</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${vendors && vendors.length > 0 ? vendors.map(vendor => `
+              <tr>
+                <td><strong>${vendor.vendor_name}</strong></td>
+                <td><span class="badge badge-${vendor.type}">${vendor.type}</span></td>
+                <td>${vendor.contact_name || '-'}</td>
+                <td>${vendor.contact_email || '-'}</td>
+                <td>${vendor.contact_phone || '-'}</td>
+                <td><span class="badge badge-${vendor.status === 'active' ? 'ok' : 'empty'}">${vendor.status}</span></td>
+              </tr>
+            `).join('') : '<tr><td colspan="6" class="empty-state">No vendors found</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `;
+        return this.generateHTMLTemplate('Vendor List Report', content, context);
+    }
+    // Chemical Inventory Report
+    async generateChemicalInventoryReport(context) {
+        const { data: chemicals, error } = await this.supabase
+            .from('ipm_chemical_inventory')
+            .select('*')
+            .eq('farm_id', context.farmId)
+            .order('product_name', { ascending: true });
+        if (error)
+            throw error;
+        const totalProducts = chemicals?.length || 0;
+        const lowStockItems = chemicals?.filter(c => c.quantity_on_hand < c.reorder_threshold).length || 0;
+        const chemicalsByType = chemicals?.reduce((acc, chem) => {
+            acc[chem.product_type] = (acc[chem.product_type] || 0) + 1;
+            return acc;
+        }, {}) || {};
+        const content = `
+      <div class="section">
+        <h2>Inventory Summary</h2>
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-value">${totalProducts}</div>
+            <div class="stat-label">Total Products</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">${lowStockItems}</div>
+            <div class="stat-label">Low Stock Items</div>
+          </div>
+          ${Object.entries(chemicalsByType).map(([type, count]) => `
+          <div class="stat-box">
+            <div class="stat-value">${count}</div>
+            <div class="stat-label">${type}</div>
+          </div>
+          `).join('')}
+        </div>
+      </div>
+
+      ${lowStockItems > 0 ? `
+      <div class="section">
+        <div class="alert">
+          <div class="alert-title">⚠️ Low Stock Alert</div>
+          ${lowStockItems} ${lowStockItems === 1 ? 'product is' : 'products are'} below reorder threshold
+        </div>
+      </div>
+      ` : ''}
+
+      <div class="section">
+        <h2>Chemical Inventory</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Product Name</th>
+              <th>Type</th>
+              <th>On Hand</th>
+              <th>Unit</th>
+              <th>Reorder At</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${chemicals && chemicals.length > 0 ? chemicals.map(chem => {
+            const isLow = chem.quantity_on_hand < chem.reorder_threshold;
+            return `
+              <tr>
+                <td><strong>${chem.product_name}</strong></td>
+                <td><span class="badge badge-${chem.product_type}">${chem.product_type}</span></td>
+                <td ${isLow ? 'class="text-danger"' : ''}>${chem.quantity_on_hand || 0}</td>
+                <td>${chem.unit_of_measure || '-'}</td>
+                <td>${chem.reorder_threshold || 0}</td>
+                <td>
+                  <span class="badge ${isLow ? 'badge-low' : 'badge-ok'}">
+                    ${isLow ? 'Low Stock' : 'OK'}
+                  </span>
+                </td>
+              </tr>
+              `;
+        }).join('') : '<tr><td colspan="6" class="empty-state">No chemical inventory found</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `;
+        return this.generateHTMLTemplate('Chemical Inventory Report', content, context);
     }
 }

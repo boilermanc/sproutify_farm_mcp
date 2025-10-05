@@ -7,7 +7,10 @@
       "Bash(npm run build:*)",
       "Bash(npm start)",
       "Bash(npm run start:server:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(start batch-report.html)",
+      "Bash(dir:*)",
+      "Bash(start seed-inventory-report.html)"
     ],
     "deny": [],
     "ask": []
