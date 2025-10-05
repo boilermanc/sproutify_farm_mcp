@@ -11,6 +11,7 @@ export class SimpleSage {
     context: { farmName: string },
     getMCPData?: (tool: string, params?: any) => Promise<any>
   ): Promise<string> {
+    console.log('[SimpleSage.processMessage] Called with:', { message, context, hasMCPData: !!getMCPData });
     const lowerMessage = message.toLowerCase();
     
     // Check for greetings
@@ -208,25 +209,38 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
     getMCPData: (tool: string, params?: any) => Promise<any>
   ): Promise<string | null> {
     try {
-      // pH/EC/Nutrient issues
+      // pH/EC/Nutrient readings
       if (message.includes('ph') || message.includes('ec') ||
-          (message.includes('nutrient') && (message.includes('issue') || message.includes('problem') || message.includes('check')))) {
-        const data = await getMCPData('get_nutrient_issues', { status: 'open' });
-        const issues = JSON.parse(data);
-        if (issues.length === 0) {
-          return `✅ Great news! You have no open nutrient or pH/EC issues.\n\n**Reminder:** Check pH daily (ideal: 5.5-6.5) and EC weekly (varies by crop stage).`;
+          (message.includes('nutrient') && (message.includes('level') || message.includes('reading') || message.includes('check') || message.includes('what')))) {
+        const data = await getMCPData('get_nutrient_readings', { limit: 10 });
+        const readings = JSON.parse(data);
+        if (readings.length === 0) {
+          return `📊 No nutrient readings recorded yet.\n\n**Get started:** Record pH and EC readings in your towers to track nutrient levels.\n**Ideal ranges:** pH 5.5-6.5, EC varies by crop stage.`;
         }
-        return `🧪 **Current Nutrient/pH/EC Issues:**\n\n${data}\n\n**Next steps:** Address these issues promptly to prevent nutrient lockout and optimize plant growth.`;
+        return `🧪 **Recent Nutrient Readings:**\n\n${data}\n\n**Note:** Monitor pH daily (ideal: 5.5-6.5) and EC regularly (varies by crop stage).`;
       }
 
-      // Water issues
-      if (message.includes('water') && (message.includes('issue') || message.includes('problem') || message.includes('quality'))) {
-        const data = await getMCPData('get_water_issues', { status: 'open' });
-        const issues = JSON.parse(data);
-        if (issues.length === 0) {
-          return `✅ No open water quality issues! Keep monitoring regularly to maintain optimal growing conditions.`;
+      // Water tests
+      if (message.includes('water') && (message.includes('test') || message.includes('lab') || message.includes('when') || message.includes('last'))) {
+        if (message.includes('lab') && !message.includes('test')) {
+          // Query for available labs
+          const data = await getMCPData('get_water_labs');
+          const labs = JSON.parse(data);
+          if (labs.length === 0) {
+            return `🔬 No water testing labs configured yet.\n\n**Next step:** Add water testing laboratories to your system to track where samples are sent.`;
+          }
+          return `🔬 **Available Water Testing Labs:**\n\n${data}`;
+        } else {
+          // Query for water tests
+          const data = await getMCPData('get_water_tests', { limit: 10 });
+          const tests = JSON.parse(data);
+          if (tests.length === 0) {
+            return `💧 No water tests recorded yet.\n\n**Get started:** Submit water samples to a certified lab for baseline testing.\n**Recommended:** Test water quality at least annually, or when issues arise.`;
+          }
+          const mostRecent = tests[0];
+          const testDate = new Date(mostRecent.created_at).toLocaleDateString();
+          return `💧 **Water Test History:**\n\n**Most recent test:** ${testDate}\n\n${data}\n\n**Tip:** Regular water testing helps identify potential issues before they affect crops.`;
         }
-        return `💧 **Current Water Issues:**\n\n${data}\n\n**Action needed:** Address water quality issues to prevent crop stress and disease.`;
       }
 
       // Seeding schedule/plans - Check FIRST for future plans
@@ -265,6 +279,47 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
         return `📏 **Spacing Schedule:**\n\n${data}`;
       }
 
+      // Crops
+      if (message.includes('crop') && (message.includes('what') || message.includes('grow') || message.includes('show') || message.includes('list'))) {
+        const data = await getMCPData('get_crops', { status: 'active' });
+        const crops = JSON.parse(data);
+        if (crops.length === 0) {
+          return `🌾 No crops configured yet. Add crops to start tracking your production!`;
+        }
+        return `🌾 **Crops We Grow:**\n\n${data}`;
+      }
+
+      // Vendors
+      if (message.includes('vendor') || message.includes('supplier')) {
+        const data = await getMCPData('get_vendors', { status: 'active' });
+        const vendors = JSON.parse(data);
+        if (vendors.length === 0) {
+          return `🏢 No vendors configured yet. Add suppliers to track your sources!`;
+        }
+        return `🏢 **Our Vendors:**\n\n${data}`;
+      }
+
+      // Towers
+      if (message.includes('tower')) {
+        const data = await getMCPData('get_towers');
+        const towers = JSON.parse(data);
+        if (towers.length === 0) {
+          return `🗼 No towers configured in the system.`;
+        }
+        const emptyTowers = towers.filter((t: any) => !t.current_crop_id);
+        return `🗼 **Tower Status:**\n\nTotal: ${towers.length} towers\nEmpty: ${emptyTowers.length}\n\n${data}`;
+      }
+
+      // Tasks
+      if (message.includes('task') && (message.includes('what') || message.includes('show') || message.includes('do'))) {
+        const data = await getMCPData('get_tasks', { status: 'pending', limit: 20 });
+        const tasks = JSON.parse(data);
+        if (tasks.length === 0) {
+          return `✅ No pending tasks! Everything's on track.`;
+        }
+        return `📋 **Pending Tasks:**\n\n${data}`;
+      }
+
       // Spray logs
       if (message.includes('spray') && !message.includes('ipm')) {
         const data = await getMCPData('get_spray_logs', { limit: 10 });
@@ -296,6 +351,7 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
       }
 
     } catch (error) {
+      console.error('[SimpleSage] Error in checkDataRequest:', error);
       return "I'm having trouble accessing your farm data right now. Please try again in a moment!";
     }
 

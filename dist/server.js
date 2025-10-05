@@ -86,25 +86,32 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
                 inputSchema: { type: 'object', properties: {} },
             },
             {
-                name: 'get_nutrient_issues',
-                description: 'Get nutrient-related issues including pH and EC problems. Use this when asked about pH levels, EC readings, or nutrient imbalances.',
+                name: 'get_nutrient_readings',
+                description: 'Get nutrient readings including pH and EC measurements. Use this when asked about pH levels, EC readings, or current nutrient status.',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        status: { type: 'string', enum: ['open', 'resolved', 'monitoring'] },
+                        tower_id: { type: 'string' },
                         limit: { type: 'number' }
                     }
                 },
             },
             {
-                name: 'get_water_issues',
-                description: 'Get water quality issues. Use this when asked about water quality, water problems, or reservoir issues.',
+                name: 'get_water_tests',
+                description: 'Get water test results and history. Use this when asked about water tests, water quality testing, or lab results.',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        status: { type: 'string', enum: ['open', 'resolved', 'monitoring'] },
                         limit: { type: 'number' }
                     }
+                },
+            },
+            {
+                name: 'get_water_labs',
+                description: 'Get available water testing laboratories. Use this when asked about water labs or where to test water.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {}
                 },
             },
             {
@@ -137,6 +144,49 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
                     properties: {
                         lowStock: { type: 'boolean' },
                         cropId: { type: 'string' }
+                    }
+                },
+            },
+            {
+                name: 'get_crops',
+                description: 'Get list of crops grown on the farm. Use this for questions like "What crops do we grow?", "Show me our crops", or "What varieties do we have?".',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        status: { type: 'string', enum: ['active', 'inactive'] }
+                    }
+                },
+            },
+            {
+                name: 'get_vendors',
+                description: 'Get vendors and suppliers. Use this for questions like "What vendors do we use?", "Show suppliers", or "Who do we buy from?".',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        type: { type: 'string', enum: ['seed', 'chemical', 'equipment', 'other'] },
+                        status: { type: 'string', enum: ['active', 'inactive'] }
+                    }
+                },
+            },
+            {
+                name: 'get_towers',
+                description: 'Get tower information and status. Use this for questions like "Show me all towers", "Which towers are empty?", "What\'s in tower 5?".',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        status: { type: 'string', enum: ['active', 'inactive', 'maintenance'] },
+                        tower_number: { type: 'number' }
+                    }
+                },
+            },
+            {
+                name: 'get_tasks',
+                description: 'Get farm tasks and to-dos. Use this for questions like "What tasks do we have?", "Show open tasks", or "What needs to be done?".',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        status: { type: 'string', enum: ['pending', 'in_progress', 'completed'] },
+                        limit: { type: 'number' }
                     }
                 },
             },
@@ -199,34 +249,39 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (req) => {
                 ],
             };
         }
-        case 'get_nutrient_issues': {
-            const status = args?.status;
+        case 'get_nutrient_readings': {
+            const tower_id = args?.tower_id;
             const limit = args?.limit || 50;
             let query = supabaseAdmin
-                .from('nutrient_issues')
+                .from('nutrient_readings')
                 .select('*')
                 .order('created_at', { ascending: false })
                 .limit(limit);
-            if (status) {
-                query = query.eq('status', status);
+            if (tower_id) {
+                query = query.eq('tower_id', tower_id);
             }
             const { data, error } = await query;
             if (error)
                 throw error;
             return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
         }
-        case 'get_water_issues': {
-            const status = args?.status;
+        case 'get_water_tests': {
             const limit = args?.limit || 50;
             let query = supabaseAdmin
-                .from('water_issues')
+                .from('water_tests')
                 .select('*')
                 .order('created_at', { ascending: false })
                 .limit(limit);
-            if (status) {
-                query = query.eq('status', status);
-            }
             const { data, error } = await query;
+            if (error)
+                throw error;
+            return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+        }
+        case 'get_water_labs': {
+            const { data, error } = await supabaseAdmin
+                .from('water_labs')
+                .select('*')
+                .eq('is_active', true);
             if (error)
                 throw error;
             return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
@@ -236,7 +291,7 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (req) => {
             const limit = args?.limit || 50;
             let query = supabaseAdmin
                 .from('plant_batches')
-                .select('*, crops(*)')
+                .select('*, seeds(*, crops(*))')
                 .order('created_at', { ascending: false })
                 .limit(limit);
             if (status) {
@@ -251,13 +306,74 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (req) => {
             const sprayType = args?.sprayType;
             const limit = args?.limit || 50;
             let query = supabaseAdmin
-                .from('spray_logs')
+                .from('core_spray_applications')
                 .select('*')
                 .order('application_date', { ascending: false })
                 .limit(limit);
             if (sprayType) {
                 query = query.eq('spray_type', sprayType);
             }
+            const { data, error } = await query;
+            if (error)
+                throw error;
+            return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+        }
+        case 'get_crops': {
+            const status = args?.status;
+            let query = supabaseAdmin
+                .from('crops')
+                .select('*')
+                .order('crop_name', { ascending: true });
+            if (status) {
+                query = query.eq('status', status);
+            }
+            const { data, error } = await query;
+            if (error)
+                throw error;
+            return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+        }
+        case 'get_vendors': {
+            const type = args?.type;
+            const status = args?.status;
+            let query = supabaseAdmin
+                .from('vendors')
+                .select('*')
+                .order('vendor_name', { ascending: true });
+            if (type)
+                query = query.eq('type', type);
+            if (status)
+                query = query.eq('status', status);
+            const { data, error } = await query;
+            if (error)
+                throw error;
+            return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+        }
+        case 'get_towers': {
+            const status = args?.status;
+            const tower_number = args?.tower_number;
+            let query = supabaseAdmin
+                .from('towers')
+                .select('*')
+                .order('tower_number', { ascending: true });
+            if (status)
+                query = query.eq('status', status);
+            if (tower_number)
+                query = query.eq('tower_number', tower_number);
+            const { data, error } = await query;
+            if (error)
+                throw error;
+            return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+        }
+        case 'get_tasks': {
+            const status = args?.status || 'pending';
+            const limit = args?.limit || 50;
+            let query = supabaseAdmin
+                .from('tasks')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(limit);
+            if (status)
+                query = query.eq('status', status);
             const { data, error } = await query;
             if (error)
                 throw error;
@@ -373,6 +489,7 @@ app.post('/mcp/messages', authMiddleware, async (req, res) => {
 // --------------------
 const sage = new SimpleSage();
 app.post('/api/sage/chat', authMiddleware, async (req, res) => {
+    console.log('[/api/sage/chat] Request received:', req.body);
     try {
         const { message, farmId, sessionId, farmName = 'your farm' } = req.body;
         if (!message) {
@@ -381,6 +498,7 @@ app.post('/api/sage/chat', authMiddleware, async (req, res) => {
         }
         // Helper function to call MCP tools with farmId filtering
         const getMCPData = async (toolName, params) => {
+            console.log(`[getMCPData] Called with tool: ${toolName}, params:`, params, 'farmId:', farmId);
             switch (toolName) {
                 case 'get_farm_stats': {
                     let towerQuery = supabaseAdmin.from('towers').select('*', { count: 'exact', head: true });
@@ -411,36 +529,42 @@ app.post('/api/sage/chat', authMiddleware, async (req, res) => {
                         throw error;
                     return JSON.stringify(data, null, 2);
                 }
-                case 'get_nutrient_issues': {
-                    const status = params?.status;
+                case 'get_nutrient_readings': {
+                    const tower_id = params?.tower_id;
                     const limit = params?.limit || 50;
                     let query = supabaseAdmin
-                        .from('nutrient_issues')
+                        .from('nutrient_readings')
                         .select('*')
                         .order('created_at', { ascending: false })
                         .limit(limit);
                     if (farmId)
                         query = query.eq('farm_id', farmId);
-                    if (status)
-                        query = query.eq('status', status);
+                    if (tower_id)
+                        query = query.eq('tower_id', tower_id);
                     const { data, error } = await query;
                     if (error)
                         throw error;
                     return JSON.stringify(data, null, 2);
                 }
-                case 'get_water_issues': {
-                    const status = params?.status;
+                case 'get_water_tests': {
                     const limit = params?.limit || 50;
                     let query = supabaseAdmin
-                        .from('water_issues')
+                        .from('water_tests')
                         .select('*')
                         .order('created_at', { ascending: false })
                         .limit(limit);
                     if (farmId)
                         query = query.eq('farm_id', farmId);
-                    if (status)
-                        query = query.eq('status', status);
                     const { data, error } = await query;
+                    if (error)
+                        throw error;
+                    return JSON.stringify(data, null, 2);
+                }
+                case 'get_water_labs': {
+                    const { data, error } = await supabaseAdmin
+                        .from('water_labs')
+                        .select('*')
+                        .eq('is_active', true);
                     if (error)
                         throw error;
                     return JSON.stringify(data, null, 2);
@@ -450,9 +574,44 @@ app.post('/api/sage/chat', authMiddleware, async (req, res) => {
                     const limit = params?.limit || 50;
                     let query = supabaseAdmin
                         .from('plant_batches')
-                        .select('*, crops(*)')
+                        .select('*, seeds(*, crops(*))')
                         .order('created_at', { ascending: false })
                         .limit(limit);
+                    if (farmId)
+                        query = query.eq('farm_id', farmId);
+                    if (status)
+                        query = query.eq('status', status);
+                    const { data, error } = await query;
+                    if (error) {
+                        console.error('[getMCPData] Supabase error:', error);
+                        throw error;
+                    }
+                    console.log('[getMCPData] Successfully retrieved', data?.length, 'plant batches');
+                    return JSON.stringify(data, null, 2);
+                }
+                case 'get_spray_logs': {
+                    const sprayType = params?.sprayType;
+                    const limit = params?.limit || 50;
+                    let query = supabaseAdmin
+                        .from('core_spray_applications')
+                        .select('*')
+                        .order('application_date', { ascending: false })
+                        .limit(limit);
+                    if (farmId)
+                        query = query.eq('farm_id', farmId);
+                    if (sprayType)
+                        query = query.eq('spray_type', sprayType);
+                    const { data, error } = await query;
+                    if (error)
+                        throw error;
+                    return JSON.stringify(data, null, 2);
+                }
+                case 'get_crops': {
+                    const status = params?.status;
+                    let query = supabaseAdmin
+                        .from('crops')
+                        .select('*')
+                        .order('crop_name', { ascending: true });
                     if (farmId)
                         query = query.eq('farm_id', farmId);
                     if (status)
@@ -462,18 +621,54 @@ app.post('/api/sage/chat', authMiddleware, async (req, res) => {
                         throw error;
                     return JSON.stringify(data, null, 2);
                 }
-                case 'get_spray_logs': {
-                    const sprayType = params?.sprayType;
+                case 'get_vendors': {
+                    const type = params?.type;
+                    const status = params?.status;
+                    let query = supabaseAdmin
+                        .from('vendors')
+                        .select('*')
+                        .order('vendor_name', { ascending: true });
+                    if (farmId)
+                        query = query.eq('farm_id', farmId);
+                    if (type)
+                        query = query.eq('type', type);
+                    if (status)
+                        query = query.eq('status', status);
+                    const { data, error } = await query;
+                    if (error)
+                        throw error;
+                    return JSON.stringify(data, null, 2);
+                }
+                case 'get_towers': {
+                    const status = params?.status;
+                    const tower_number = params?.tower_number;
+                    let query = supabaseAdmin
+                        .from('towers')
+                        .select('*')
+                        .order('tower_number', { ascending: true });
+                    if (farmId)
+                        query = query.eq('farm_id', farmId);
+                    if (status)
+                        query = query.eq('status', status);
+                    if (tower_number)
+                        query = query.eq('tower_number', tower_number);
+                    const { data, error } = await query;
+                    if (error)
+                        throw error;
+                    return JSON.stringify(data, null, 2);
+                }
+                case 'get_tasks': {
+                    const status = params?.status || 'pending';
                     const limit = params?.limit || 50;
                     let query = supabaseAdmin
-                        .from('spray_logs')
+                        .from('tasks')
                         .select('*')
-                        .order('application_date', { ascending: false })
+                        .order('created_at', { ascending: false })
                         .limit(limit);
                     if (farmId)
                         query = query.eq('farm_id', farmId);
-                    if (sprayType)
-                        query = query.eq('spray_type', sprayType);
+                    if (status)
+                        query = query.eq('status', status);
                     const { data, error } = await query;
                     if (error)
                         throw error;

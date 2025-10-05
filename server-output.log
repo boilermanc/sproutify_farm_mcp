@@ -1,0 +1,6 @@
+
+> sproutify_farm_mcp@1.0.0 start:server
+> node dist/server.js
+
+? Sage REST endpoint available at http://localhost:3010/api/sage/chat
+? MCP SSE transport available at http://localhost:3010/mcp (POST to /mcp/messages)
