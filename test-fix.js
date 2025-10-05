@@ -3,8 +3,20 @@ import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 import { SimpleSage } from './dist/services/simpleSage.js';
 
+// Validate required environment variables
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
+
+if (typeof supabaseUrl !== 'string' || typeof supabaseServiceKey !== 'string') {
+  const missingVars = [];
+  if (typeof supabaseUrl !== 'string') missingVars.push('SUPABASE_URL');
+  if (typeof supabaseServiceKey !== 'string') missingVars.push('SUPABASE_SERVICE_KEY');
+  
+  console.error(`Error: Missing required environment variables: ${missingVars.join(', ')}`);
+  console.error('Please ensure both SUPABASE_URL and SUPABASE_SERVICE_KEY are set in your environment.');
+  process.exit(1);
+}
+
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 const farmId = '624a653c-d36b-47d6-806d-584bd6c2cfcf';
@@ -210,6 +222,26 @@ const getMCPData = async (toolName, params) => {
       throw error;
     }
     console.log('[getMCPData] Success! Retrieved', data.length, 'tasks');
+    return JSON.stringify(data, null, 2);
+  }
+
+  if (toolName === 'get_planting_plans') {
+    const limit = params?.limit || 50;
+
+    let query = supabase
+      .from('planting_plans')
+      .select('*')
+      .order('planting_date', { ascending: true })
+      .limit(limit);
+
+    if (farmId) query = query.eq('farm_id', farmId);
+
+    const { data, error } = await query;
+    if (error) {
+      console.error('[getMCPData] Error:', error);
+      throw error;
+    }
+    console.log('[getMCPData] Success! Retrieved', data.length, 'planting plans');
     return JSON.stringify(data, null, 2);
   }
 

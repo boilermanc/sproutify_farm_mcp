@@ -2,6 +2,14 @@
 import 'dotenv/config';
 
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+
+// Validate required environment variables
+if (!SUPABASE_SERVICE_KEY) {
+  console.error('Error: SUPABASE_SERVICE_KEY environment variable is required but not set.');
+  console.error('Please set the SUPABASE_SERVICE_KEY environment variable and try again.');
+  process.exit(1);
+}
+
 const PORT = process.env.PORT || 3010;
 const BASE_URL = `http://localhost:${PORT}`;
 

@@ -279,6 +279,16 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
         return `📏 **Spacing Schedule:**\n\n${data}`;
       }
 
+      // Planting schedule/plans
+      if ((message.includes('planting') || message.includes('plant')) && (message.includes('plan') || message.includes('schedule') || message.includes('when') || message.includes('should'))) {
+        const data = await getMCPData('get_planting_plans', { limit: 10 });
+        const plans = JSON.parse(data);
+        if (plans.length === 0) {
+          return `🌱 No planting activities scheduled currently.`;
+        }
+        return `🌱 **Planting Schedule:**\n\n${data}`;
+      }
+
       // Crops
       if (message.includes('crop') && (message.includes('what') || message.includes('grow') || message.includes('show') || message.includes('list'))) {
         const data = await getMCPData('get_crops', { status: 'active' });

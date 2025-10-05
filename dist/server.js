@@ -214,6 +214,17 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
                     }
                 },
             },
+            {
+                name: 'get_planting_plans',
+                description: 'Get planting schedule for moving plants into towers. Use this for questions about planting activities, when to plant into towers, or planting dates.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        status: { type: 'string', enum: ['pending', 'completed'] },
+                        limit: { type: 'number' }
+                    }
+                },
+            },
         ],
     };
 });
@@ -433,6 +444,22 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (req) => {
             }
             if (endDate) {
                 query = query.lte('spacing_date', endDate);
+            }
+            const { data, error } = await query;
+            if (error)
+                throw error;
+            return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+        }
+        case 'get_planting_plans': {
+            const status = args?.status;
+            const limit = args?.limit || 50;
+            let query = supabaseAdmin
+                .from('planting_plans')
+                .select('*')
+                .order('planting_date', { ascending: true })
+                .limit(limit);
+            if (status) {
+                query = query.eq('status', status);
             }
             const { data, error } = await query;
             if (error)
@@ -730,6 +757,23 @@ app.post('/api/sage/chat', authMiddleware, async (req, res) => {
                         query = query.gte('spacing_date', startDate);
                     if (endDate)
                         query = query.lte('spacing_date', endDate);
+                    const { data, error } = await query;
+                    if (error)
+                        throw error;
+                    return JSON.stringify(data, null, 2);
+                }
+                case 'get_planting_plans': {
+                    const status = params?.status;
+                    const limit = params?.limit || 50;
+                    let query = supabaseAdmin
+                        .from('planting_plans')
+                        .select('*')
+                        .order('planting_date', { ascending: true })
+                        .limit(limit);
+                    if (farmId)
+                        query = query.eq('farm_id', farmId);
+                    if (status)
+                        query = query.eq('status', status);
                     const { data, error } = await query;
                     if (error)
                         throw error;

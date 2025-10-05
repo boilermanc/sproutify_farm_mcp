@@ -4,6 +4,17 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
+
+if (!supabaseUrl) {
+  console.error('Error: SUPABASE_URL environment variable is not defined');
+  process.exit(1);
+}
+
+if (!supabaseServiceKey) {
+  console.error('Error: SUPABASE_SERVICE_KEY environment variable is not defined');
+  process.exit(1);
+}
+
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 const farmId = '624a653c-d36b-47d6-806d-584bd6c2cfcf';
