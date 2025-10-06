@@ -151,6 +151,14 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
+        name: 'get_tower_plants',
+        description: 'Get plants currently growing in towers. **Use this tool for questions like**: "What\'s in my towers?", "What\'s planted in towers?", "What towers have plants?", "Show me tower contents". Returns actual planted crops with tower numbers.',
+        inputSchema: {
+          type: 'object',
+          properties: {}
+        },
+      },
+      {
         name: 'get_spray_logs',
         description: 'Get core spray application logs. Use this for questions about sprays applied or spray schedules. CORE spray only, NOT IPM module.',
         inputSchema: {
@@ -358,6 +366,23 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (req) => {
       }
 
       const { data, error } = await query;
+      if (error) throw error;
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    }
+    case 'get_tower_plants': {
+      const { data, error } = await supabaseAdmin
+        .from('tower_plants')
+        .select(`
+          *,
+          towers!inner(tower_number, farm_id),
+          seeds(
+            vendor_seed_name,
+            crops(crop_name)
+          )
+        `)
+        .eq('towers.farm_id', farmId)
+        .in('status', ['growing', 'ready_harvest']);
+
       if (error) throw error;
       return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     }
@@ -753,6 +778,27 @@ app.post('/api/sage/chat', authMiddleware, async (req: Request, res: Response) =
             throw error;
           }
           console.log('[getMCPData] Successfully retrieved', data?.length, 'plant batches');
+          return JSON.stringify(data, null, 2);
+        }
+        case 'get_tower_plants': {
+          const { data, error } = await supabaseAdmin
+            .from('tower_plants')
+            .select(`
+              *,
+              towers!inner(tower_number, farm_id),
+              seeds(
+                vendor_seed_name,
+                crops(crop_name)
+              )
+            `)
+            .eq('towers.farm_id', farmId)
+            .in('status', ['growing', 'ready_harvest']);
+
+          if (error) {
+            console.error('[getMCPData] get_tower_plants error:', error);
+            throw error;
+          }
+          console.log('[getMCPData] Successfully retrieved', data?.length, 'tower plants');
           return JSON.stringify(data, null, 2);
         }
         case 'get_spray_logs': {
