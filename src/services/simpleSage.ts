@@ -223,7 +223,8 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
       'tower farm', 'design', 'construction', 'build', 'setup',
       'maintenance', 'troubleshoot', 'repair', 'install',
       'system', 'equipment', 'manual', 'guide', 'instructions',
-      'best practice', 'operation', 'procedure'
+      'best practice', 'operation', 'procedure', 'mix', 'mixing',
+      'nutrient a', 'nutrient b'
     ];
 
     // Check if message contains training manual keywords
@@ -250,18 +251,20 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
           return null; // Let other handlers try
         }
 
-        // Format results for user
-        let response = `📘 **From the Tower Farm Training Manuals:**\n\n`;
+        // Format results for user - concise for chat
+        let response = `📘 From the Tower Farm Training Manuals:\n\n`;
 
-        results.forEach((result: any, index: number) => {
-          response += `**${result.manual}${result.section ? ` - ${result.section}` : ''}**\n`;
-          response += `${result.content}\n\n`;
-          if (result.page) {
-            response += `*Page ${result.page}*\n\n`;
-          }
-        });
+        // Take the top result and format it cleanly
+        const topResult = results[0];
+        response += `${topResult.content}\n\n`;
 
-        response += `*Want more details? Ask me to elaborate!*`;
+        if (results.length > 1) {
+          response += `(${results.length - 1} more related section${results.length > 2 ? 's' : ''} available)\n\n`;
+        }
+
+        if (topResult.manual && topResult.page) {
+          response += `Source: ${topResult.manual}, Page ${topResult.page}`;
+        }
 
         return response;
       } catch (error: any) {
@@ -360,41 +363,55 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
 
       // Towers with growing plants - CHECK THIS FIRST
       if (message.includes('tower') && (message.includes('growing') || message.includes('planted') || message.includes('have') || message.includes('in my') || message.includes('what'))) {
-        const data = await getMCPData('get_plant_batches', { limit: 100 });
-        const batches = JSON.parse(data);
+        const data = await getMCPData('get_tower_plants');
+        const towerPlants = JSON.parse(data);
 
-        if (batches.length === 0) {
+        console.log('[SimpleSage] Tower plants data:', JSON.stringify(towerPlants, null, 2));
+
+        if (towerPlants.length === 0) {
           return `🗼 You don't have any towers with plants growing currently. Time to start planting!`;
         }
 
-        // Extract unique towers
+        // Group by tower
         const towersWithPlants = new Map();
-        batches.forEach((batch: any) => {
-          if (batch.towers && batch.towers.tower_number) {
-            const towerNum = batch.towers.tower_number;
+        towerPlants.forEach((plant: any) => {
+          const towerNum = plant.towers?.tower_number;
+          if (towerNum) {
             if (!towersWithPlants.has(towerNum)) {
               towersWithPlants.set(towerNum, []);
             }
+            const crop = plant.seeds?.crops?.crop_name || 'Unknown';
+            const variety = plant.seeds?.vendor_seed_name || '';
+            const quantity = plant.plants_count || 0;
+            const status = plant.status || 'unknown';
+
             towersWithPlants.get(towerNum).push({
-              crop: batch.seeds?.crops?.crop_name || 'Unknown',
-              status: batch.status
+              crop,
+              variety,
+              quantity,
+              status
             });
           }
         });
 
         const towerCount = towersWithPlants.size;
-        const towerList = Array.from(towersWithPlants.keys()).sort((a, b) => a - b);
+        const towerList = Array.from(towersWithPlants.keys()).sort((a, b) => {
+          const aNum = parseFloat(a);
+          const bNum = parseFloat(b);
+          return aNum - bNum;
+        });
 
         let details = '';
         towerList.forEach(towerNum => {
           const crops = towersWithPlants.get(towerNum);
-          details += `\n**Tower ${towerNum}:**\n`;
-          crops.forEach((crop: any) => {
-            details += `  - ${crop.crop} (${crop.status})\n`;
+          details += `\nTower ${towerNum}:\n`;
+          crops.forEach((item: any) => {
+            const cropName = item.variety ? `${item.crop} (${item.variety})` : item.crop;
+            details += `  • ${cropName} - ${item.quantity} plants (${item.status})\n`;
           });
         });
 
-        return `🌱 **Towers with Growing Plants:** ${towerCount}\n\n**Tower numbers:** ${towerList.join(', ')}\n${details}`;
+        return `🌱 Towers with Growing Plants: ${towerCount}\n\nTower numbers: ${towerList.join(', ')}\n${details}`;
       }
 
       // Specific crop growing query (e.g., "do I have romaine growing?")

@@ -44,6 +44,28 @@ async function getMCPData(toolName: string, params: any = {}) {
       return JSON.stringify(data || []);
     }
 
+    case 'get_tower_plants': {
+      const { data, error } = await supabase
+        .from('tower_plants')
+        .select(`
+          *,
+          towers!inner(tower_number, farm_id),
+          seeds(
+            vendor_seed_name,
+            crops(crop_name)
+          )
+        `)
+        .eq('towers.farm_id', farmId)
+        .in('status', ['growing', 'ready_harvest']);
+
+      console.log('[getMCPData] get_tower_plants:', { farmId, count: data?.length, error });
+      if (data && data.length > 0) {
+        console.log('[getMCPData] Sample tower plant:', JSON.stringify(data[0], null, 2));
+      }
+
+      return JSON.stringify(data || []);
+    }
+
     case 'get_seed_inventory': {
       const { data } = await supabase
         .from('seed_inventory')
