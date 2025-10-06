@@ -224,7 +224,9 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
       'maintenance', 'troubleshoot', 'repair', 'install',
       'system', 'equipment', 'manual', 'guide', 'instructions',
       'best practice', 'operation', 'procedure', 'mix', 'mixing',
-      'nutrient a', 'nutrient b'
+      'nutrient a', 'nutrient b', 'planning', 'plan', 'concept',
+      'greenhouse', 'irrigation', 'dosing', 'dosatron', 'reservoir',
+      'gravity', 'pump', 'valve', 'manifold', 'electrical'
     ];
 
     // Check if message contains training manual keywords
