@@ -286,13 +286,25 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
 
   // Helper to check if question is data-specific (about current farm state)
   private isDataSpecificQuestion(message: string): boolean {
-    const dataKeywords = [
-      'my', 'our', 'current', 'now', 'today', 'last',
+    // Possessive/temporal keywords that indicate specific farm data
+    const dataIndicators = [
+      'my', 'our', 'current', 'now', 'today', 'last', 'in my',
       'seeded', 'planted', 'growing', 'harvested',
-      'towers', 'batch', 'reading', 'spray', 'sprayed',
-      'seed inventory', 'seeds', 'what seeds', 'in my'
+      'towers', 'batches', 'reading', 'spray', 'sprayed',
+      'seed inventory', 'seeds i', 'what seeds'
     ];
-    return dataKeywords.some(keyword => message.includes(keyword));
+
+    // Training manual patterns to exclude from data check
+    const trainingPatterns = [
+      'concept', 'planning', 'how to', 'what are', 'can you'
+    ];
+
+    // If it's clearly a training/knowledge question, not data-specific
+    if (trainingPatterns.some(pattern => message.includes(pattern))) {
+      return false;
+    }
+
+    return dataIndicators.some(keyword => message.includes(keyword));
   }
 
   private async checkDataRequest(
