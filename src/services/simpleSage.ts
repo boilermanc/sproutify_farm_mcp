@@ -238,8 +238,12 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
                       message.includes('should') || message.includes('can') ||
                       message.includes('concept');
 
-    // Try training manual for all questions, let similarity score filter relevance
-    if (hasTrainingKeyword || isQuestion) {
+    // Only search training manual if NOT asking about specific farm data
+    // Farm data questions skip the manual search for speed
+    const isFarmDataQuestion = this.isDataSpecificQuestion(message);
+
+    // Try training manual for questions that aren't clearly about farm data
+    if (!isFarmDataQuestion && (hasTrainingKeyword || isQuestion)) {
       console.log('[SimpleSage] Detected training manual question');
 
       try {
@@ -283,9 +287,10 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
   // Helper to check if question is data-specific (about current farm state)
   private isDataSpecificQuestion(message: string): boolean {
     const dataKeywords = [
-      'my', 'our', 'current', 'now', 'today',
+      'my', 'our', 'current', 'now', 'today', 'last',
       'seeded', 'planted', 'growing', 'harvested',
-      'tower', 'batch', 'crop', 'reading'
+      'towers', 'batch', 'reading', 'spray', 'sprayed',
+      'seed inventory', 'seeds', 'what seeds', 'in my'
     ];
     return dataKeywords.some(keyword => message.includes(keyword));
   }
