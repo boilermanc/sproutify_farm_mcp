@@ -1,8 +1,8 @@
 # Sage Tools API Documentation
 
-**Server:** `http://localhost:3002` (configurable via `TOOLS_PORT`)
+**Server:** `http://localhost:3001` (configurable via `TOOLS_PORT`, defaults to 3001)
 
-The Sage Tools Server provides 5 focused API endpoints for AI agents and applications to interact with farm management systems.
+The Sage Unified Server provides 5 focused tool endpoints PLUS a legacy `/sage` endpoint for backwards compatibility. All endpoints run on a single port for simplified deployment.
 
 ---
 
@@ -234,6 +234,31 @@ npm run start:tools
 
 ---
 
+## Legacy Endpoint
+
+### POST /sage (Backwards Compatible)
+
+For existing integrations, the monolithic `/sage` endpoint is still available:
+
+**Request:**
+```json
+{
+  "message": "How many towers do I have?",
+  "farmId": "uuid-here",
+  "farmName": "My Farm",
+  "userEmail": "user@farm.com"
+}
+```
+
+**Response:**
+```json
+{
+  "response": "You have 12 towers currently active..."
+}
+```
+
+---
+
 ## Integration with n8n
 
 Each tool can be configured as an HTTP Request node in n8n:
@@ -241,7 +266,7 @@ Each tool can be configured as an HTTP Request node in n8n:
 **Example: Generate Report Tool**
 ```
 Method: POST
-URL: http://localhost:3002/tools/generate_report
+URL: http://localhost:3001/tools/generate_report
 Body:
 {
   "report_type": "{{ $json.report_type }}",
@@ -253,7 +278,7 @@ Body:
 **Example: Conversational Data Entry**
 ```
 Method: POST
-URL: http://localhost:3002/tools/record_data
+URL: http://localhost:3001/tools/record_data
 Body:
 {
   "message": "{{ $json.user_message }}",

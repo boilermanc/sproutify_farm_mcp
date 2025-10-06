@@ -12,7 +12,7 @@ import fs from 'fs';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.TOOLS_PORT || 3002;
+const PORT = process.env.TOOLS_PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
@@ -354,6 +354,35 @@ app.post('/tools/ask_sage', async (req, res) => {
 });
 
 // ==========================================
+// LEGACY: /sage endpoint (backwards compatibility)
+// ==========================================
+app.post('/sage', async (req, res) => {
+  try {
+    const { message, farmId, farmName, userEmail } = req.body;
+    console.log(`[SAGE] Received message: "${message}" for farmId: ${farmId}`);
+
+    if (!message) {
+      return res.status(400).json({ error: 'Message is required' });
+    }
+    if (!farmId) {
+      return res.status(400).json({ error: 'farmId is required' });
+    }
+
+    // Use SimpleSage to process the message
+    const response = await sage.processMessage(message, {
+      farmName: farmName || 'Your Farm',
+      farmId,
+      userEmail: userEmail || 'user@farm.com'
+    });
+
+    res.json({ response });
+  } catch (error: any) {
+    console.error('[SAGE] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==========================================
 // Tool List & Health
 // ==========================================
 app.get('/tools', (req, res) => {
@@ -419,16 +448,18 @@ app.get('/tools', (req, res) => {
 });
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', tools_count: 5 });
+  res.json({ status: 'ok', tools_count: 5, legacy_endpoints: 1 });
 });
 
 app.listen(PORT, () => {
-  console.log(`🔧 Sage Tools Server running on http://localhost:${PORT}`);
+  console.log(`🔧 Sage Unified Server running on http://localhost:${PORT}`);
   console.log(`📋 Available tools: http://localhost:${PORT}/tools`);
-  console.log(`\n5 Tools Available:`);
+  console.log(`\n5 Focused Tools:`);
   console.log(`  1. POST /tools/search_manual - Training manual search`);
   console.log(`  2. POST /tools/get_farm_data - Farm data queries`);
   console.log(`  3. POST /tools/generate_report - Report generation`);
   console.log(`  4. POST /tools/record_data - Conversational data entry`);
   console.log(`  5. POST /tools/ask_sage - Expert knowledge`);
+  console.log(`\nLegacy Endpoint:`);
+  console.log(`  • POST /sage - Backwards compatible monolithic endpoint`);
 });
