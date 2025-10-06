@@ -235,9 +235,11 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
     // Also check for question words that might indicate seeking general knowledge
     const isQuestion = message.includes('how') || message.includes('what') ||
                       message.includes('why') || message.includes('when') ||
-                      message.includes('should') || message.includes('can');
+                      message.includes('should') || message.includes('can') ||
+                      message.includes('concept');
 
-    if (hasTrainingKeyword || (isQuestion && !this.isDataSpecificQuestion(message))) {
+    // Try training manual for all questions, let similarity score filter relevance
+    if (hasTrainingKeyword || isQuestion) {
       console.log('[SimpleSage] Detected training manual question');
 
       try {
