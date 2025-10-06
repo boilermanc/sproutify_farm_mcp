@@ -2,13 +2,24 @@
 // No-API Sage implementation with personality
 
 import { FARMING_KNOWLEDGE } from './sageKnowledge.js';
+import { ReportGenerator, type ReportContext } from '../reports/generator.js';
+import { SupabaseClient } from '@supabase/supabase-js';
+import fs from 'fs';
+import path from 'path';
 
 export class SimpleSage {
   private knowledge = FARMING_KNOWLEDGE;
-  
+  private reportGenerator?: ReportGenerator;
+
+  constructor(supabase?: SupabaseClient) {
+    if (supabase) {
+      this.reportGenerator = new ReportGenerator(supabase);
+    }
+  }
+
   async processMessage(
     message: string,
-    context: { farmName: string },
+    context: { farmName: string; farmId?: string; userEmail?: string },
     getMCPData?: (tool: string, params?: any) => Promise<any>
   ): Promise<string> {
     console.log('[SimpleSage.processMessage] Called with:', { message, context, hasMCPData: !!getMCPData });
@@ -18,30 +29,37 @@ export class SimpleSage {
     if (this.isGreeting(lowerMessage)) {
       return this.getGreeting(context.farmName);
     }
-    
+
+    // Check for report requests (actual generation)
+    if (this.reportGenerator && context.farmId) {
+      const reportResponse = await this.checkAndGenerateReport(lowerMessage, {
+        farmId: context.farmId,
+        farmName: context.farmName,
+        userEmail: context.userEmail || 'user@farm.com',
+        reportType: ''
+      });
+      if (reportResponse) return reportResponse;
+    }
+
     // Check for pest questions
     const pestResponse = this.checkPestQuestion(lowerMessage);
     if (pestResponse) return pestResponse;
-    
+
     // Check for disease questions
     const diseaseResponse = this.checkDiseaseQuestion(lowerMessage);
     if (diseaseResponse) return diseaseResponse;
-    
+
     // Check for nutrient questions
     const nutrientResponse = this.checkNutrientQuestion(lowerMessage);
     if (nutrientResponse) return nutrientResponse;
-    
+
     // Check for environmental questions
     const envResponse = this.checkEnvironmentalQuestion(lowerMessage);
     if (envResponse) return envResponse;
-    
+
     // Check for crop-specific questions
     const cropResponse = this.checkCropQuestion(lowerMessage);
     if (cropResponse) return cropResponse;
-
-    // Check for report requests
-    const reportResponse = this.checkReportQuestion(lowerMessage);
-    if (reportResponse) return reportResponse;
 
     // Check for training manual questions (if MCP function provided)
     if (getMCPData) {
@@ -657,9 +675,132 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
     return null;
   }
   
-  private checkReportQuestion(message: string): string | null {
-    if (message.includes('report') && (message.includes('what') || message.includes('can') || message.includes('run') || message.includes('generate') || message.includes('available'))) {
-      return `📊 **Available Printable Reports:**
+  // Generate actual reports
+  private async checkAndGenerateReport(message: string, context: ReportContext): Promise<string | null> {
+    if (!this.reportGenerator) return null;
+
+    // Check if they're asking what reports are available
+    if (message.includes('report') && (message.includes('what') || message.includes('can') || message.includes('available'))) {
+      return this.getReportListMessage();
+    }
+
+    // Check for actual report generation requests
+    if (!message.includes('report') && !message.includes('generate') && !message.includes('create')) {
+      return null;
+    }
+
+    try {
+      let html: string | null = null;
+      let reportType: string = '';
+
+      // Seed Inventory Report
+      if (message.includes('seed') && message.includes('inventory')) {
+        reportType = 'Seed Inventory Report';
+        html = await this.reportGenerator.generateSeedInventoryReport(context);
+      }
+      // Tower Status Report
+      else if (message.includes('tower') && message.includes('status')) {
+        reportType = 'Tower Status Report';
+        html = await this.reportGenerator.generateTowerStatusReport(context);
+      }
+      // Harvest Report
+      else if (message.includes('harvest')) {
+        reportType = 'Harvest Report';
+        html = await this.reportGenerator.generateHarvestReport(context);
+      }
+      // Weekly Planning Report
+      else if (message.includes('weekly') || (message.includes('planning') && !message.includes('production'))) {
+        reportType = 'Weekly Planning Report';
+        html = await this.reportGenerator.generateWeeklyPlanningReport(context);
+      }
+      // Production Summary Report
+      else if (message.includes('production')) {
+        reportType = 'Production Summary Report';
+        html = await this.reportGenerator.generateProductionSummaryReport(context);
+      }
+      // pH & EC Readings Report
+      else if (message.includes('ph') || message.includes('ec') || message.includes('nutrient') && message.includes('reading')) {
+        reportType = 'pH & EC Readings Report';
+        html = await this.reportGenerator.generateNutrientReadingsReport(context);
+      }
+      // Water Test Report
+      else if (message.includes('water') && message.includes('test')) {
+        reportType = 'Water Test Results Report';
+        html = await this.reportGenerator.generateWaterTestReport(context);
+      }
+      // Spray Applications Report
+      else if (message.includes('spray')) {
+        reportType = 'Spray Applications Report';
+        html = await this.reportGenerator.generateSprayApplicationsReport(context);
+      }
+      // Chemical Inventory Report
+      else if (message.includes('chemical')) {
+        reportType = 'Chemical Inventory Report';
+        html = await this.reportGenerator.generateChemicalInventoryReport(context);
+      }
+      // Vendor List Report
+      else if (message.includes('vendor')) {
+        reportType = 'Vendor List Report';
+        html = await this.reportGenerator.generateVendorListReport(context);
+      }
+      // Generic "batch" report
+      else if (message.includes('batch')) {
+        return `📊 I found your request for a batch report! However, I need more specific information.
+
+Which type of batch report would you like?
+- **"Generate seed inventory report"** - All seeds and current stock
+- **"Generate weekly planning report"** - Upcoming seeding and spacing activities
+- **"Generate production summary report"** - Recent harvests and active batches
+
+Or ask "What reports can I run?" to see all available options.`;
+      }
+
+      if (html) {
+        // Create reports directory if it doesn't exist
+        const reportsDir = path.join(process.cwd(), 'reports');
+        if (!fs.existsSync(reportsDir)) {
+          fs.mkdirSync(reportsDir, { recursive: true });
+        }
+
+        // Generate filename with timestamp
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+        const filename = `${reportType.replace(/\s+/g, '-')}-${timestamp}.html`;
+        const filePath = path.join(reportsDir, filename);
+
+        // Write HTML to file
+        fs.writeFileSync(filePath, html);
+
+        console.log(`[SimpleSage] Report generated: ${filePath}`);
+
+        return `✅ **${reportType} Generated Successfully!**
+
+📄 **File:** ${filename}
+📂 **Location:** ${reportsDir}
+
+**To view:**
+Open the file in your browser to see the professional printable report. You can print it directly from your browser (Ctrl/Cmd + P).
+
+**Next steps:**
+- Review the report data
+- Print or save as PDF
+- Share with your team
+
+Need another report? Just ask! Type "What reports can I run?" to see all options.`;
+      }
+
+      // If we got here, they asked for a report but we couldn't determine which one
+      return this.getReportListMessage();
+
+    } catch (error: any) {
+      console.error('[SimpleSage] Error generating report:', error);
+      return `❌ I encountered an error generating that report: ${error.message}
+
+Please try again or ask "What reports can I run?" to see available options.`;
+    }
+  }
+
+  private getReportListMessage(): string {
+    return `📊 **Available Printable Reports:**
 
 I can generate professional printable reports for you:
 
@@ -684,31 +825,6 @@ I can generate professional printable reports for you:
 Ask me to create a specific report like "Generate seed inventory report" or "Create pH readings report" and I'll prepare a professional PDF-ready document for you!
 
 Which report would you like to see?`;
-    }
-
-    if (message.includes('report') && (message.includes('generate') || message.includes('create') || message.includes('make'))) {
-      return `📊 To generate a report, please specify which one you'd like:
-
-**Inventory:**
-- "Generate seed inventory report"
-- "Generate chemical inventory report"
-- "Generate vendor list report"
-
-**Production:**
-- "Create tower status report"
-- "Make harvest report"
-- "Generate weekly planning report"
-- "Create production summary report"
-
-**Quality:**
-- "Generate pH readings report"
-- "Create water test report"
-- "Generate spray applications report"
-
-Or ask "What reports can I run?" to see all available options!`;
-    }
-
-    return null;
   }
 
   private getHelpfulDefault(): string {

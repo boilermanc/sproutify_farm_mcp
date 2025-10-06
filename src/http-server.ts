@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
 import { SimpleSage } from './services/simpleSage.js';
+import { SlashCommandHandler } from './services/slashCommands.js';
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 
@@ -27,6 +28,8 @@ const supabase = createClient(
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || ''
 });
+
+const slashCommandHandler = new SlashCommandHandler(supabase);
 
 // MCP tool handler
 async function getMCPData(toolName: string, params: any = {}) {
@@ -198,7 +201,7 @@ async function getMCPData(toolName: string, params: any = {}) {
 // Main endpoint
 app.post('/sage', async (req, res) => {
   try {
-    const { message, farmId, farmName } = req.body;
+    const { message, farmId, farmName, userEmail } = req.body;
     console.log(`[SAGE] Received message: "${message}" for farmId: ${farmId}`);
 
     if (!message) {
@@ -209,7 +212,15 @@ app.post('/sage', async (req, res) => {
       return res.status(400).json({ error: 'farmId is required' });
     }
 
-    const sage = new SimpleSage();
+    // Check for slash commands first
+    const slashResult = await slashCommandHandler.handleCommand(message, farmId, farmName || 'Your Farm');
+    if (slashResult) {
+      console.log(`[SAGE] Slash command processed: ${slashResult.success ? 'SUCCESS' : 'FAILED'}`);
+      return res.json({ response: slashResult.message });
+    }
+
+    // Initialize SimpleSage with Supabase for report generation
+    const sage = new SimpleSage(supabase);
 
     // Wrap getMCPData to include farmId
     const getMCPDataWithFarm = async (toolName: string, params: any = {}) => {
@@ -218,7 +229,11 @@ app.post('/sage', async (req, res) => {
 
     const response = await sage.processMessage(
       message,
-      { farmName: farmName || 'Your Farm' },
+      {
+        farmName: farmName || 'Your Farm',
+        farmId,
+        userEmail: userEmail || 'user@farm.com'
+      },
       getMCPDataWithFarm
     );
 
