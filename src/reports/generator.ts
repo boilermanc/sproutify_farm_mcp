@@ -351,7 +351,7 @@ export class ReportGenerator {
           status,
           seeded_date,
           crop_id,
-          crops:crop_id (name, variety, days_to_harvest)
+          crops:crop_id (crop_name, days_to_harvest)
         )
       `)
       .eq('farm_id', context.farmId)
@@ -405,7 +405,7 @@ export class ReportGenerator {
               <tr>
                 <td><strong>${tower.position}</strong></td>
                 <td><span class="status-badge status-${tower.status}">${tower.status.replace('_', ' ')}</span></td>
-                <td>${tower.plant_batches?.crops ? `${tower.plant_batches.crops.name} - ${tower.plant_batches.crops.variety}` : '-'}</td>
+                <td>${tower.plant_batches?.crops ? tower.plant_batches.crops.crop_name : '-'}</td>
                 <td>${tower.plant_batches?.quantity || '-'}</td>
                 <td>${tower.plant_batches?.seeded_date ? new Date(tower.plant_batches.seeded_date).toLocaleDateString() : '-'}</td>
                 <td>${tower.plant_batches?.seeded_date && tower.plant_batches?.crops?.days_to_harvest ? 
@@ -427,11 +427,11 @@ export class ReportGenerator {
       .from('seeds')
       .select(`
         *,
-        crops:crop_id (name, variety, category),
-        vendors:vendor_id (name, contact_email, contact_phone)
+        crops:crop_id (crop_name, category),
+        vendors:vendor_id (vendor_name, contact_email, contact_phone)
       `)
       .eq('farm_id', context.farmId)
-      .order('crops(name)');
+      .order('crops(crop_name)');
 
     if (error) throw error;
 
@@ -479,13 +479,13 @@ export class ReportGenerator {
           <tbody>
             ${seeds?.map(seed => `
               <tr>
-                <td><strong>${seed.crops?.name} - ${seed.crops?.variety}</strong></td>
+                <td><strong>${seed.crops?.crop_name}</strong></td>
                 <td>${seed.crops?.category || '-'}</td>
                 <td style="${seed.current_quantity < 100 ? 'color: #dc2626; font-weight: bold;' : ''}">${seed.current_quantity}</td>
                 <td>${seed.initial_quantity}</td>
                 <td>$${seed.cost_per_unit?.toFixed(2) || '0.00'}</td>
                 <td>$${(seed.current_quantity * (seed.cost_per_unit || 0)).toFixed(2)}</td>
-                <td>${seed.vendors?.name || '-'}</td>
+                <td>${seed.vendors?.vendor_name || '-'}</td>
                 <td>${seed.lot_number || '-'}</td>
               </tr>
             `).join('') || '<tr><td colspan="8" class="empty-state">No seeds in inventory</td></tr>'}
@@ -508,9 +508,9 @@ export class ReportGenerator {
           <tbody>
             ${lowStockSeeds.map(seed => `
               <tr>
-                <td><strong>${seed.crops?.name} - ${seed.crops?.variety}</strong></td>
+                <td><strong>${seed.crops?.crop_name}</strong></td>
                 <td style="color: #dc2626; font-weight: bold;">${seed.current_quantity}</td>
-                <td>${seed.vendors?.name || '-'}</td>
+                <td>${seed.vendors?.vendor_name || '-'}</td>
                 <td>${seed.vendors?.contact_email || seed.vendors?.contact_phone || '-'}</td>
               </tr>
             `).join('')}
@@ -532,7 +532,7 @@ export class ReportGenerator {
       .from('seeding_plans')
       .select(`
         *,
-        crops:crop_id (name, variety)
+        crops:crop_id (crop_name)
       `)
       .eq('farm_id', context.farmId)
       .gte('seeding_date', startDate)
@@ -545,7 +545,7 @@ export class ReportGenerator {
         *,
         plant_batches (
           crop_id,
-          crops:crop_id (name, variety)
+          crops:crop_id (crop_name)
         )
       `)
       .eq('farm_id', context.farmId)
@@ -588,7 +588,7 @@ export class ReportGenerator {
             ${seedingPlans?.map(plan => `
               <tr>
                 <td><strong>${new Date(plan.seeding_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</strong></td>
-                <td>${plan.crops?.name} - ${plan.crops?.variety}</td>
+                <td>${plan.crops?.crop_name}</td>
                 <td>${plan.quantity}</td>
                 <td><span class="status-badge status-${plan.completed ? 'ready_harvest' : 'growing'}">${plan.completed ? 'Completed' : 'Pending'}</span></td>
                 <td>${plan.notes || '-'}</td>
@@ -616,7 +616,7 @@ export class ReportGenerator {
             ${spacingPlans.map(plan => `
               <tr>
                 <td><strong>${new Date(plan.spacing_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</strong></td>
-                <td>${plan.plant_batches?.crops?.name} - ${plan.plant_batches?.crops?.variety || '-'}</td>
+                <td>${plan.plant_batches?.crops?.crop_name || '-'}</td>
                 <td>${plan.from_tray}</td>
                 <td>${plan.to_tray}</td>
                 <td>${plan.quantity}</td>
@@ -644,7 +644,7 @@ export class ReportGenerator {
           seeded_date,
           planted_date,
           crop_id,
-          crops:crop_id (name, variety, days_to_harvest)
+          crops:crop_id (crop_name, days_to_harvest)
         )
       `)
       .eq('farm_id', context.farmId)
@@ -655,7 +655,7 @@ export class ReportGenerator {
       .from('plant_batches')
       .select(`
         *,
-        crops:crop_id (name, variety, days_to_harvest),
+        crops:crop_id (crop_name, days_to_harvest),
         towers:tower_id (position)
       `)
       .eq('farm_id', context.farmId)
@@ -715,7 +715,7 @@ export class ReportGenerator {
               return `
               <tr>
                 <td><strong>${tower.position}</strong></td>
-                <td>${tower.plant_batches?.crops?.name} - ${tower.plant_batches?.crops?.variety}</td>
+                <td>${tower.plant_batches?.crops?.crop_name}</td>
                 <td>${tower.plant_batches?.quantity}</td>
                 <td>${tower.plant_batches?.planted_date ? new Date(tower.plant_batches.planted_date).toLocaleDateString() : '-'}</td>
                 <td>${daysInTower} days</td>
@@ -748,7 +748,7 @@ export class ReportGenerator {
                 <td><strong>${batch.estimated_harvest_date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</strong></td>
                 <td>${daysUntil} days</td>
                 <td>${batch.towers?.position || '-'}</td>
-                <td>${batch.crops?.name} - ${batch.crops?.variety}</td>
+                <td>${batch.crops?.crop_name}</td>
                 <td>${batch.quantity}</td>
               </tr>
               `;
@@ -771,7 +771,7 @@ export class ReportGenerator {
       .from('plant_batches')
       .select(`
         *,
-        crops:crop_id (name, variety, category)
+        crops:crop_id (crop_name, category)
       `)
       .eq('farm_id', context.farmId)
       .eq('status', 'harvested')
@@ -782,7 +782,7 @@ export class ReportGenerator {
       .from('plant_batches')
       .select(`
         *,
-        crops:crop_id (name, variety, category)
+        crops:crop_id (crop_name, category)
       `)
       .eq('farm_id', context.farmId)
       .in('status', ['seeded', 'germinating', 'spacing', 'ready_to_plant', 'planted']);
@@ -886,7 +886,10 @@ export class ReportGenerator {
 
     const { data: sprayLogs, error } = await this.supabase
       .from('core_spray_applications')
-      .select('*')
+      .select(`
+        *,
+        farm_chemicals:farm_chemical_id (product_name)
+      `)
       .eq('farm_id', context.farmId)
       .gte('application_date', startDate)
       .lte('application_date', endDate)
@@ -935,7 +938,7 @@ export class ReportGenerator {
               <tr>
                 <td><strong>${new Date(log.application_date).toLocaleDateString()}</strong></td>
                 <td><span class="badge badge-${log.spray_type}">${log.spray_type}</span></td>
-                <td>${log.product_name || '-'}</td>
+                <td>${log.farm_chemicals?.product_name || '-'}</td>
                 <td>${log.application_rate || '-'}</td>
                 <td>${log.target_pest || log.target_area || '-'}</td>
                 <td>${log.applied_by || '-'}</td>
@@ -958,15 +961,15 @@ export class ReportGenerator {
       .from('nutrient_readings')
       .select('*')
       .eq('farm_id', context.farmId)
-      .gte('created_at', startDate)
-      .lte('created_at', endDate)
-      .order('created_at', { ascending: false });
+      .gte('recorded_at', startDate)
+      .lte('recorded_at', endDate)
+      .order('recorded_at', { ascending: false });
 
     if (error) throw error;
 
-    const avgPH = readings?.reduce((sum, r) => sum + (r.ph_level || 0), 0) / (readings?.length || 1);
-    const avgEC = readings?.reduce((sum, r) => sum + (r.ec_level || 0), 0) / (readings?.length || 1);
-    const outOfRangePH = readings?.filter(r => r.ph_level < 5.5 || r.ph_level > 6.5).length || 0;
+    const avgPH = readings?.reduce((sum, r) => sum + (r.ph_value || 0), 0) / (readings?.length || 1);
+    const avgEC = readings?.reduce((sum, r) => sum + (r.ec_value || 0), 0) / (readings?.length || 1);
+    const outOfRangePH = readings?.filter(r => r.ph_value < 5.5 || r.ph_value > 6.5).length || 0;
     const totalReadings = readings?.length || 0;
 
     const content = `
@@ -1016,14 +1019,14 @@ export class ReportGenerator {
           </thead>
           <tbody>
             ${readings && readings.length > 0 ? readings.map(reading => {
-              const isOutOfRange = reading.ph_level < 5.5 || reading.ph_level > 6.5;
+              const isOutOfRange = reading.ph_value < 5.5 || reading.ph_value > 6.5;
               return `
               <tr>
-                <td><strong>${new Date(reading.created_at).toLocaleString()}</strong></td>
+                <td><strong>${new Date(reading.recorded_at).toLocaleString()}</strong></td>
                 <td>${reading.tower_id || 'N/A'}</td>
-                <td ${isOutOfRange ? 'class="text-danger"' : ''}>${reading.ph_level?.toFixed(2) || '-'}</td>
-                <td>${reading.ec_level?.toFixed(2) || '-'}</td>
-                <td>${reading.water_temp ? reading.water_temp + '°F' : '-'}</td>
+                <td ${isOutOfRange ? 'class="text-danger"' : ''}>${reading.ph_value?.toFixed(2) || '-'}</td>
+                <td>${reading.ec_value?.toFixed(2) || '-'}</td>
+                <td>${reading.temperature ? reading.temperature + '°F' : '-'}</td>
                 <td>${reading.notes || '-'}</td>
               </tr>
               `;
@@ -1045,7 +1048,7 @@ export class ReportGenerator {
         water_labs:lab_id (name, contact_email)
       `)
       .eq('farm_id', context.farmId)
-      .order('test_date', { ascending: false });
+      .order('sample_date', { ascending: false });
 
     if (error) throw error;
 
@@ -1062,7 +1065,7 @@ export class ReportGenerator {
           </div>
           ${latestTest ? `
           <div class="stat-box">
-            <div class="stat-value">${new Date(latestTest.test_date).toLocaleDateString()}</div>
+            <div class="stat-value">${new Date(latestTest.sample_date).toLocaleDateString()}</div>
             <div class="stat-label">Latest Test</div>
           </div>
           ` : ''}
@@ -1074,27 +1077,25 @@ export class ReportGenerator {
         <table>
           <thead>
             <tr>
-              <th>Test Date</th>
+              <th>Sample Date</th>
               <th>Lab</th>
-              <th>pH</th>
-              <th>TDS</th>
-              <th>Hardness</th>
-              <th>Iron</th>
+              <th>Test Type</th>
+              <th>Status</th>
+              <th>Sample Location</th>
               <th>Notes</th>
             </tr>
           </thead>
           <tbody>
             ${waterTests && waterTests.length > 0 ? waterTests.map(test => `
               <tr>
-                <td><strong>${new Date(test.test_date).toLocaleDateString()}</strong></td>
+                <td><strong>${new Date(test.sample_date).toLocaleDateString()}</strong></td>
                 <td>${test.water_labs?.name || '-'}</td>
-                <td>${test.ph_level?.toFixed(2) || '-'}</td>
-                <td>${test.tds_ppm || '-'}</td>
-                <td>${test.hardness_ppm || '-'}</td>
-                <td>${test.iron_ppm || '-'}</td>
+                <td>${test.test_type || '-'}</td>
+                <td><span class="badge badge-${test.status}">${test.status || 'pending'}</span></td>
+                <td>${test.sample_location || '-'}</td>
                 <td>${test.notes || '-'}</td>
               </tr>
-            `).join('') : '<tr><td colspan="7" class="empty-state">No water tests found</td></tr>'}
+            `).join('') : '<tr><td colspan="6" class="empty-state">No water tests found</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -1171,7 +1172,7 @@ export class ReportGenerator {
   // Chemical Inventory Report
   async generateChemicalInventoryReport(context: ReportContext): Promise<string> {
     const { data: chemicals, error } = await this.supabase
-      .from('ipm_chemical_inventory')
+      .from('farm_chemicals')
       .select('*')
       .eq('farm_id', context.farmId)
       .order('product_name', { ascending: true });

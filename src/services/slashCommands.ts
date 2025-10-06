@@ -248,7 +248,8 @@ Example: /seed 100 romaine in tray 1`,
           farm_id: farmId,
           seed_id: seed.id,
           plants_seeded: quantity,
-          tray_number: trayNumber,
+          seeds_used: quantity,
+          seeding_tray_tag: trayNumber,
           seed_date: new Date().toISOString(),
           status: 'seeded'
         })
@@ -341,7 +342,8 @@ Example: /record ph 6.2 for tower 1.05`,
       const readingData: any = {
         farm_id: farmId,
         tower_id: tower.id,
-        reading_date: new Date().toISOString()
+        reading_type: 'manual',
+        recorded_at: new Date().toISOString()
       };
 
       let displayMetric = '';
@@ -349,19 +351,19 @@ Example: /record ph 6.2 for tower 1.05`,
 
       switch (readingType) {
         case 'ph':
-          readingData.ph_level = value;
+          readingData.ph_value = value;
           displayMetric = `pH: ${value}`;
           if (value < 5.5 || value > 6.5) {
             warningMessage = `\n\n⚠️ **Warning:** pH ${value} is outside optimal range (5.5-6.5). Adjust immediately to prevent nutrient lockout.`;
           }
           break;
         case 'ec':
-          readingData.ec_level = value;
+          readingData.ec_value = value;
           displayMetric = `EC: ${value} mS/cm`;
           break;
         case 'temperature':
         case 'temp':
-          readingData.water_temp = value;
+          readingData.temperature = value;
           displayMetric = `Temperature: ${value}°F`;
           if (value < 65 || value > 75) {
             warningMessage = `\n\n⚠️ **Warning:** Water temperature ${value}°F is outside optimal range (65-75°F). This may affect nutrient uptake.`;
@@ -460,8 +462,7 @@ Example: /spray regalia on tower 1.05 2 oz`,
           farm_id: farmId,
           tower_id: tower.id,
           application_date: new Date().toISOString(),
-          product_name: productName,
-          application_rate: `${amount} ${unit}`,
+          concentration: `${amount} ${unit}`,
           spray_type: 'fungicide', // Default, can be enhanced
           target_area: `Tower ${towerNumber}`
         });
