@@ -9,9 +9,11 @@
     "dev": "tsx watch src/index.ts",
     "dev:server": "tsx watch src/server.ts",
     "dev:http": "tsx watch src/http-server.ts",
+    "dev:tools": "tsx watch src/tools-server.ts",
     "start": "node dist/index.js",
     "start:server": "node dist/server.js",
     "start:http": "node dist/http-server.js",
+    "start:tools": "node dist/tools-server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
