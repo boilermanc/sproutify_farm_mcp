@@ -33,8 +33,11 @@ export class SimpleSage {
       return this.getGreeting(context.farmName);
     }
 
-    // Check for help command
-    if (lowerMessage === '/help' || lowerMessage === 'help' || lowerMessage.includes('help me')) {
+    // Check for help command - /help shows slash commands, "help" shows conversational menu
+    if (lowerMessage === '/help') {
+      return this.getSlashCommandHelp();
+    }
+    if (lowerMessage === 'help' || lowerMessage.includes('help me')) {
       return this.getHelpfulDefault();
     }
 
@@ -875,5 +878,36 @@ Just tell me what you want to record, and I'll guide you through it:
 - "How long does basil take to grow?" - Crop information
 
 Type **/help** anytime to see this menu. What would you like to do?`;
+  }
+
+  private getSlashCommandHelp(): string {
+    return `🔧 **Slash Commands**
+
+**Planting & Seeding:**
+\`/seed <quantity> <crop_name> in tray <tray_number>\`
+  Example: /seed 100 romaine in tray 1
+
+\`/plant <batch_id> in tower <tower_number>\`
+  Example: /plant abc123 in tower 1.05
+
+**Recording Data:**
+\`/record ph <value> for tower <tower_number>\`
+  Example: /record ph 6.2 for tower 1.05
+
+\`/record ec <value> for tower <tower_number>\`
+  Example: /record ec 2.1 for tower 1.05
+
+\`/record temperature <value> for tower <tower_number>\`
+  Example: /record temperature 68 for tower 1.05
+
+**Applications:**
+\`/spray <product> on tower <tower_number> <amount> <unit>\`
+  Example: /spray regalia on tower 1.05 2 oz
+
+**Harvesting:**
+\`/harvest tower <tower_number>\`
+  Example: /harvest tower 1.05
+
+Type "help" for conversational mode and other features!`;
   }
 }
