@@ -13,6 +13,12 @@ const PORT = process.env.HTTP_PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  next();
+});
+
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_KEY!
@@ -193,6 +199,7 @@ async function getMCPData(toolName: string, params: any = {}) {
 app.post('/sage', async (req, res) => {
   try {
     const { message, farmId, farmName } = req.body;
+    console.log(`[SAGE] Received message: "${message}" for farmId: ${farmId}`);
 
     if (!message) {
       return res.status(400).json({ error: 'Message is required' });
