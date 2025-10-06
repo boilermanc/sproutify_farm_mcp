@@ -359,7 +359,7 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
       }
 
       // Towers with growing plants - CHECK THIS FIRST
-      if (message.includes('tower') && (message.includes('growing') || message.includes('planted') || message.includes('have'))) {
+      if (message.includes('tower') && (message.includes('growing') || message.includes('planted') || message.includes('have') || message.includes('in my') || message.includes('what'))) {
         const data = await getMCPData('get_plant_batches', { limit: 100 });
         const batches = JSON.parse(data);
 
@@ -561,7 +561,7 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
       }
 
       // General tower info (not growing-specific)
-      if (message.includes('tower') && !message.includes('growing') && !message.includes('planted') && !message.includes('have')) {
+      if (message.includes('tower') && !message.includes('growing') && !message.includes('planted') && !message.includes('have') && !message.includes('in my') && !message.includes('what')) {
         const data = await getMCPData('get_towers');
         const towers = JSON.parse(data);
         if (towers.length === 0) {
