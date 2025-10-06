@@ -693,8 +693,8 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
   private async checkAndGenerateReport(message: string, context: ReportContext): Promise<string | null> {
     if (!this.reportGenerator) return null;
 
-    // Check if they're asking what reports are available
-    if (message.includes('report') && (message.includes('what') || message.includes('can') || message.includes('available'))) {
+    // Check if they're asking what reports are available (but NOT trying to generate one)
+    if (message.includes('report') && (message.includes('what') || message.includes('can') || message.includes('available') || message.includes('list')) && !message.includes('generate') && !message.includes('create') && !message.includes('make')) {
       return this.getReportListMessage();
     }
 
