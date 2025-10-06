@@ -3,6 +3,7 @@
 
 import { FARMING_KNOWLEDGE } from './sageKnowledge.js';
 import { ReportGenerator, type ReportContext } from '../reports/generator.js';
+import { ConversationalDataEntry } from './conversationalDataEntry.js';
 import { SupabaseClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
@@ -10,10 +11,12 @@ import path from 'path';
 export class SimpleSage {
   private knowledge = FARMING_KNOWLEDGE;
   private reportGenerator?: ReportGenerator;
+  private conversationalDataEntry?: ConversationalDataEntry;
 
   constructor(supabase?: SupabaseClient) {
     if (supabase) {
       this.reportGenerator = new ReportGenerator(supabase);
+      this.conversationalDataEntry = new ConversationalDataEntry(supabase);
     }
   }
 
@@ -24,10 +27,21 @@ export class SimpleSage {
   ): Promise<string> {
     console.log('[SimpleSage.processMessage] Called with:', { message, context, hasMCPData: !!getMCPData });
     const lowerMessage = message.toLowerCase();
-    
+
     // Check for greetings
     if (this.isGreeting(lowerMessage)) {
       return this.getGreeting(context.farmName);
+    }
+
+    // Check for conversational data entry (NEW - priority check)
+    if (this.conversationalDataEntry && context.farmId && context.userEmail) {
+      const dataEntryResponse = await this.conversationalDataEntry.handleMessage(
+        message,
+        context.userEmail, // Use userEmail as userId for now
+        context.farmId,
+        context.farmName
+      );
+      if (dataEntryResponse) return dataEntryResponse;
     }
 
     // Check for report requests (actual generation)
