@@ -715,43 +715,54 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
       let html: string | null = null;
       let reportType: string = '';
 
-      // Seed Inventory Report
-      if (message.includes('seed') && message.includes('inventory')) {
+      // Seed Inventory Report - lenient matching
+      if (message.includes('seed') && (message.includes('inventory') || message.includes('stock'))) {
         reportType = 'Seed Inventory Report';
         html = await this.reportGenerator.generateSeedInventoryReport(context);
       }
       // Tower Status Report
-      else if (message.includes('tower') && message.includes('status')) {
+      else if (message.includes('tower') && (message.includes('status') || message.includes('utilization'))) {
         reportType = 'Tower Status Report';
         html = await this.reportGenerator.generateTowerStatusReport(context);
       }
-      // Harvest Report
+      // Harvest Report - lenient matching
       else if (message.includes('harvest')) {
         reportType = 'Harvest Report';
         html = await this.reportGenerator.generateHarvestReport(context);
       }
-      // Weekly Planning Report
-      else if (message.includes('weekly') || (message.includes('planning') && !message.includes('production'))) {
+      // Weekly Planning Report - VERY lenient matching (planting, planning, seeding, spacing, schedule, etc.)
+      else if (
+        message.includes('weekly') ||
+        message.includes('planting') ||
+        message.includes('seeding schedule') ||
+        message.includes('spacing schedule') ||
+        (message.includes('planning') && !message.includes('production')) ||
+        (message.includes('schedule') && !message.includes('spray'))
+      ) {
         reportType = 'Weekly Planning Report';
         html = await this.reportGenerator.generateWeeklyPlanningReport(context);
       }
       // Production Summary Report
-      else if (message.includes('production')) {
+      else if (message.includes('production') || message.includes('summary')) {
         reportType = 'Production Summary Report';
         html = await this.reportGenerator.generateProductionSummaryReport(context);
       }
-      // pH & EC Readings Report
-      else if (message.includes('ph') || message.includes('ec') || message.includes('nutrient') && message.includes('reading')) {
+      // pH & EC Readings Report - lenient matching
+      else if (
+        message.includes('ph') ||
+        message.includes('ec') ||
+        (message.includes('nutrient') && message.includes('reading'))
+      ) {
         reportType = 'pH & EC Readings Report';
         html = await this.reportGenerator.generateNutrientReadingsReport(context);
       }
       // Water Test Report
-      else if (message.includes('water') && message.includes('test')) {
+      else if (message.includes('water') && (message.includes('test') || message.includes('quality'))) {
         reportType = 'Water Test Results Report';
         html = await this.reportGenerator.generateWaterTestReport(context);
       }
       // Spray Applications Report
-      else if (message.includes('spray')) {
+      else if (message.includes('spray') || message.includes('application')) {
         reportType = 'Spray Applications Report';
         html = await this.reportGenerator.generateSprayApplicationsReport(context);
       }
@@ -761,7 +772,7 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
         html = await this.reportGenerator.generateChemicalInventoryReport(context);
       }
       // Vendor List Report
-      else if (message.includes('vendor')) {
+      else if (message.includes('vendor') || message.includes('supplier')) {
         reportType = 'Vendor List Report';
         html = await this.reportGenerator.generateVendorListReport(context);
       }
