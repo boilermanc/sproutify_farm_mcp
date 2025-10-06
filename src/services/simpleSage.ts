@@ -33,6 +33,11 @@ export class SimpleSage {
       return this.getGreeting(context.farmName);
     }
 
+    // Check for help command
+    if (lowerMessage === '/help' || lowerMessage === 'help' || lowerMessage.includes('help me')) {
+      return this.getHelpfulDefault();
+    }
+
     // Check for conversational data entry (NEW - priority check)
     if (this.conversationalDataEntry && context.farmId && context.userEmail) {
       const dataEntryResponse = await this.conversationalDataEntry.handleMessage(
@@ -842,20 +847,33 @@ Which report would you like to see?`;
   }
 
   private getHelpfulDefault(): string {
-    return `I'm here to help with your vertical farm! 🌱
+    return `🌱 **Sproutify Sage - Your Vertical Farming Assistant**
 
-I can assist with:
-- **Pest & Disease Management** - "How do I get rid of aphids?"
-- **Nutrient Issues** - "Why are my leaves turning yellow?" or "Check my pH levels"
-- **Environmental Control** - "What's the ideal temperature for lettuce?"
-- **Crop Information** - "How long does basil take to grow?"
-- **Farm Data** - "How many towers do I have?" or "What's seeded?"
-- **Planning** - "What's my seeding schedule?" or "What needs spacing?"
-- **Inventory** - "What seeds are low in stock?"
-- **Water Quality** - "Any water issues?"
-- **Spray Logs** - "What sprays have been applied?"
-- **Reports** - "What reports can I run?" or "Generate seed inventory report"
+**📊 Data Entry (Conversational)**
+Just tell me what you want to record, and I'll guide you through it:
+- "I want to seed some romaine" - Record seeding operations
+- "Record a pH reading" - Log pH, EC, or temperature
+- "Log a spray application" - Track chemical applications
+- Say "cancel" anytime to exit
 
-What would you like to know about?`;
+**📈 Reports & Analytics**
+- "What reports can I run?" - See all available reports
+- "Generate seed inventory report" - Stock levels and alerts
+- "Create harvest report" - Current & upcoming harvests
+- "Generate pH readings report" - Nutrient monitoring history
+
+**🔍 Farm Information**
+- "How many towers do I have?" - Tower status and utilization
+- "What's seeded?" - Current plant batches
+- "What needs spacing?" - Upcoming tasks
+- "What seeds are low in stock?" - Inventory alerts
+
+**🐛 Expert Advice**
+- "How do I get rid of aphids?" - Pest management
+- "Why are my leaves turning yellow?" - Nutrient issues
+- "What's the ideal temperature for lettuce?" - Environmental control
+- "How long does basil take to grow?" - Crop information
+
+Type **/help** anytime to see this menu. What would you like to do?`;
   }
 }
