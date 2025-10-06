@@ -380,7 +380,6 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (req) => {
             crops(crop_name)
           )
         `)
-        .eq('towers.farm_id', farmId)
         .in('status', ['growing', 'ready_harvest']);
 
       if (error) throw error;
