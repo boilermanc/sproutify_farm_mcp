@@ -10,7 +10,10 @@
       "Bash(node:*)",
       "Bash(start batch-report.html)",
       "Bash(dir:*)",
-      "Bash(start seed-inventory-report.html)"
+      "Bash(start seed-inventory-report.html)",
+      "Bash(timeout:*)",
+      "Bash(npm install:*)",
+      "Bash(npx tsx:*)"
     ],
     "deny": [],
     "ask": []

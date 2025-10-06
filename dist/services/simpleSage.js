@@ -34,6 +34,12 @@ export class SimpleSage {
         const reportResponse = this.checkReportQuestion(lowerMessage);
         if (reportResponse)
             return reportResponse;
+        // Check for training manual questions (if MCP function provided)
+        if (getMCPData) {
+            const manualResponse = await this.checkTrainingManualQuestion(lowerMessage, getMCPData);
+            if (manualResponse)
+                return manualResponse;
+        }
         // Check for farm data requests (if MCP function provided)
         if (getMCPData) {
             const dataResponse = await this.checkDataRequest(lowerMessage, getMCPData);
@@ -183,6 +189,60 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
         }
         return null;
     }
+    async checkTrainingManualQuestion(message, getMCPData) {
+        // Keywords that indicate training manual questions
+        const trainingKeywords = [
+            'tower farm', 'design', 'construction', 'build', 'setup',
+            'maintenance', 'troubleshoot', 'repair', 'install',
+            'system', 'equipment', 'manual', 'guide', 'instructions',
+            'best practice', 'operation', 'procedure'
+        ];
+        // Check if message contains training manual keywords
+        const hasTrainingKeyword = trainingKeywords.some(keyword => message.includes(keyword));
+        // Also check for question words that might indicate seeking general knowledge
+        const isQuestion = message.includes('how') || message.includes('what') ||
+            message.includes('why') || message.includes('when') ||
+            message.includes('should') || message.includes('can');
+        if (hasTrainingKeyword || (isQuestion && !this.isDataSpecificQuestion(message))) {
+            console.log('[SimpleSage] Detected training manual question');
+            try {
+                const data = await getMCPData('search_training_manual', { query: message, limit: 3 });
+                const results = JSON.parse(data);
+                // Check if results contain a message (no results found)
+                if (results.message) {
+                    return null; // Let other handlers try
+                }
+                if (results.length === 0) {
+                    return null; // Let other handlers try
+                }
+                // Format results for user
+                let response = `📘 **From the Tower Farm Training Manuals:**\n\n`;
+                results.forEach((result, index) => {
+                    response += `**${result.manual}${result.section ? ` - ${result.section}` : ''}**\n`;
+                    response += `${result.content}\n\n`;
+                    if (result.page) {
+                        response += `*Page ${result.page}*\n\n`;
+                    }
+                });
+                response += `*Want more details? Ask me to elaborate!*`;
+                return response;
+            }
+            catch (error) {
+                console.error('[SimpleSage] Error searching training manual:', error);
+                return null; // Fall back to other handlers
+            }
+        }
+        return null;
+    }
+    // Helper to check if question is data-specific (about current farm state)
+    isDataSpecificQuestion(message) {
+        const dataKeywords = [
+            'my', 'our', 'current', 'now', 'today',
+            'seeded', 'planted', 'growing', 'harvested',
+            'tower', 'batch', 'crop', 'reading'
+        ];
+        return dataKeywords.some(keyword => message.includes(keyword));
+    }
     async checkDataRequest(message, getMCPData) {
         try {
             // pH/EC/Nutrient readings
@@ -191,9 +251,18 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
                 const data = await getMCPData('get_nutrient_readings', { limit: 10 });
                 const readings = JSON.parse(data);
                 if (readings.length === 0) {
-                    return `📊 No nutrient readings recorded yet.\n\n**Get started:** Record pH and EC readings in your towers to track nutrient levels.\n**Ideal ranges:** pH 5.5-6.5, EC varies by crop stage.`;
+                    return `📊 No pH/EC readings recorded yet. Ideal ranges: pH 5.5-6.5, EC varies by crop.`;
                 }
-                return `🧪 **Recent Nutrient Readings:**\n\n${data}\n\n**Note:** Monitor pH daily (ideal: 5.5-6.5) and EC regularly (varies by crop stage).`;
+                // Format readings in a clean list
+                let response = `🧪 **Recent Nutrient Readings**\n\n`;
+                readings.forEach((r) => {
+                    const date = new Date(r.reading_date).toLocaleDateString();
+                    const tower = r.tower_number ? `Tower ${r.tower_number}` : 'Unknown';
+                    const ph = r.ph_level || 'N/A';
+                    const ec = r.ec_level || 'N/A';
+                    response += `  • ${date} - ${tower}: pH ${ph}, EC ${ec}\n`;
+                });
+                return response.trim();
             }
             // Water tests
             if (message.includes('water') && (message.includes('test') || message.includes('lab') || message.includes('when') || message.includes('last'))) {
@@ -211,11 +280,19 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
                     const data = await getMCPData('get_water_tests', { limit: 10 });
                     const tests = JSON.parse(data);
                     if (tests.length === 0) {
-                        return `💧 No water tests recorded yet.\n\n**Get started:** Submit water samples to a certified lab for baseline testing.\n**Recommended:** Test water quality at least annually, or when issues arise.`;
+                        return `💧 No water tests recorded yet.`;
                     }
-                    const mostRecent = tests[0];
-                    const testDate = new Date(mostRecent.created_at).toLocaleDateString();
-                    return `💧 **Water Test History:**\n\n**Most recent test:** ${testDate}\n\n${data}\n\n**Tip:** Regular water testing helps identify potential issues before they affect crops.`;
+                    // Format water tests cleanly
+                    let response = `💧 **Water Test History**\n\n`;
+                    tests.forEach((test, index) => {
+                        const testDate = new Date(test.created_at).toLocaleDateString();
+                        const lab = test.lab_name || 'Unknown lab';
+                        const status = test.status || 'pending';
+                        if (index === 0)
+                            response += `**Most recent:** `;
+                        response += `${testDate} - ${lab} (${status})\n`;
+                    });
+                    return response.trim();
                 }
             }
             // Seeding schedule/plans - Check FIRST for future plans
@@ -223,16 +300,104 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
                 const data = await getMCPData('get_seeding_plans', { limit: 10 });
                 const plans = JSON.parse(data);
                 if (plans.length === 0) {
-                    return `📅 No upcoming seeding plans scheduled. Consider planning your next crops!`;
+                    return `📅 No upcoming seeding plans scheduled.`;
                 }
-                return `📅 **Upcoming Seeding Schedule:**\n\n${data}`;
+                let response = `📅 **Upcoming Seeding Schedule** (${plans.length})\n\n`;
+                plans.forEach((plan) => {
+                    const date = new Date(plan.planned_date).toLocaleDateString();
+                    const crop = plan.crop_name || 'Unknown crop';
+                    const quantity = plan.planned_quantity || 0;
+                    response += `  • ${date}: ${crop} - ${quantity} plants\n`;
+                });
+                return response.trim();
             }
-            // Seeded/Planted items - Current batches (check after seeding plans)
-            if (message.includes('seeded') ||
+            // Towers with growing plants - CHECK THIS FIRST
+            if (message.includes('tower') && (message.includes('growing') || message.includes('planted') || message.includes('have') || message.includes('in my') || message.includes('what'))) {
+                const data = await getMCPData('get_plant_batches', { limit: 100 });
+                const batches = JSON.parse(data);
+                if (batches.length === 0) {
+                    return `🗼 You don't have any towers with plants growing currently. Time to start planting!`;
+                }
+                // Extract unique towers
+                const towersWithPlants = new Map();
+                batches.forEach((batch) => {
+                    if (batch.towers && batch.towers.tower_number) {
+                        const towerNum = batch.towers.tower_number;
+                        if (!towersWithPlants.has(towerNum)) {
+                            towersWithPlants.set(towerNum, []);
+                        }
+                        towersWithPlants.get(towerNum).push({
+                            crop: batch.seeds?.crops?.crop_name || 'Unknown',
+                            status: batch.status
+                        });
+                    }
+                });
+                const towerCount = towersWithPlants.size;
+                const towerList = Array.from(towersWithPlants.keys()).sort((a, b) => a - b);
+                let details = '';
+                towerList.forEach(towerNum => {
+                    const crops = towersWithPlants.get(towerNum);
+                    details += `\n**Tower ${towerNum}:**\n`;
+                    crops.forEach((crop) => {
+                        details += `  - ${crop.crop} (${crop.status})\n`;
+                    });
+                });
+                return `🌱 **Towers with Growing Plants:** ${towerCount}\n\n**Tower numbers:** ${towerList.join(', ')}\n${details}`;
+            }
+            // Specific crop growing query (e.g., "do I have romaine growing?")
+            const cropMatches = message.match(/(?:have|got|growing|any)\s+(?:any\s+)?(\w+(?:\s+\w+)?)\s+(?:growing|planted|in towers?)/i);
+            if (cropMatches || (message.includes('growing') && (message.includes('romaine') || message.includes('basil') || message.includes('lettuce') || message.includes('kale')))) {
+                console.log('[SimpleSage] Detected crop-specific growing query');
+                const data = await getMCPData('get_plant_batches', { limit: 100 });
+                const batches = JSON.parse(data);
+                if (batches.length === 0) {
+                    return `📋 You don't have any active plant batches currently. Time to start seeding!`;
+                }
+                // Extract crop name from message
+                const cropKeywords = ['romaine', 'basil', 'lettuce', 'kale', 'butterhead', 'oakleaf', 'arugula', 'spinach', 'chard'];
+                const searchCrop = cropKeywords.find(crop => message.toLowerCase().includes(crop));
+                if (searchCrop) {
+                    const cropBatches = batches.filter((b) => b.seeds?.crops?.crop_name?.toLowerCase().includes(searchCrop));
+                    if (cropBatches.length === 0) {
+                        return `🥬 No ${searchCrop} batches found. You currently have ${batches.length} batches of other crops.`;
+                    }
+                    // Count batches in towers (planted/growing status)
+                    const inTowers = cropBatches.filter((b) => b.towers && b.towers.tower_number &&
+                        (b.status === 'planted' || b.status === 'growing' || b.status === 'ready_harvest'));
+                    const otherStages = cropBatches.filter((b) => !b.towers || !b.towers.tower_number);
+                    let response = `🌱 **${searchCrop.charAt(0).toUpperCase() + searchCrop.slice(1)} Status:**\n\n`;
+                    if (inTowers.length > 0) {
+                        response += `**✅ Growing in Towers (${inTowers.length}):**\n`;
+                        inTowers.forEach((b) => {
+                            response += `  - Tower ${b.towers.tower_number}: ${b.seeds.crops.crop_name} (${b.status})\n`;
+                        });
+                        response += '\n';
+                    }
+                    else {
+                        response += `**No ${searchCrop} currently in towers.**\n\n`;
+                    }
+                    if (otherStages.length > 0) {
+                        const byStatus = {};
+                        otherStages.forEach((b) => {
+                            if (!byStatus[b.status])
+                                byStatus[b.status] = 0;
+                            byStatus[b.status]++;
+                        });
+                        response += `**📋 In Pipeline (${otherStages.length}):**\n`;
+                        Object.entries(byStatus).forEach(([status, count]) => {
+                            response += `  - ${status}: ${count} batches\n`;
+                        });
+                    }
+                    return response;
+                }
+            }
+            // Seeded/Planted items - Current batches (check after seeding plans and tower queries)
+            if ((message.includes('seeded') ||
                 message.includes('planted') ||
                 (message.includes('plant') && (message.includes('what') || message.includes('current') || message.includes('batch'))) ||
                 (message.includes('seed') && (message.includes('what') || message.includes('current') || message.includes('have'))) ||
-                message.includes('growing')) {
+                message.includes('growing')) &&
+                !message.includes('tower')) {
                 console.log('[SimpleSage] Detected seeded/planted query, calling get_plant_batches');
                 const data = await getMCPData('get_plant_batches', { limit: 20 });
                 console.log('[SimpleSage] Received plant batches data:', data?.substring(0, 200));
@@ -240,25 +405,62 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
                 if (batches.length === 0) {
                     return `📋 You don't have any active plant batches currently. Time to start seeding!`;
                 }
-                return `🌱 **Current Plant Batches:**\n\n${data}\n\n${batches.length} active batches tracked.`;
+                // Group by status
+                const grouped = {};
+                batches.forEach((batch) => {
+                    const status = batch.status || 'unknown';
+                    if (!grouped[status])
+                        grouped[status] = [];
+                    grouped[status].push(batch);
+                });
+                let response = `🌱 **Current Plant Batches** (${batches.length} total)\n\n`;
+                // Format each status group
+                Object.entries(grouped).forEach(([status, statusBatches]) => {
+                    const statusEmoji = status === 'seeded' ? '🌱' : status === 'spaced' ? '🌿' : status === 'planted' ? '🪴' : '📦';
+                    response += `${statusEmoji} **${status.toUpperCase()}** (${statusBatches.length})\n`;
+                    statusBatches.forEach((batch) => {
+                        const crop = batch.seeds?.crops?.crop_name || 'Unknown crop';
+                        const variety = batch.seeds?.variety_name || '';
+                        const seedDate = batch.seeded_date ? new Date(batch.seeded_date).toLocaleDateString() : 'N/A';
+                        const plantsSeeded = batch.plants_seeded || 0;
+                        const tower = batch.towers?.tower_number ? `Tower ${batch.towers.tower_number}` : '';
+                        response += `  • ${crop}${variety ? ` (${variety})` : ''} - ${plantsSeeded} plants - Seeded: ${seedDate}${tower ? ` - ${tower}` : ''}\n`;
+                    });
+                    response += '\n';
+                });
+                return response.trim();
             }
             // Spacing schedule/plans
             if (message.includes('spacing') || (message.includes('space') && message.includes('plan'))) {
                 const data = await getMCPData('get_spacing_plans', { limit: 10 });
                 const plans = JSON.parse(data);
                 if (plans.length === 0) {
-                    return `📏 No spacing activities scheduled currently.`;
+                    return `📏 No spacing activities scheduled.`;
                 }
-                return `📏 **Spacing Schedule:**\n\n${data}`;
+                let response = `📏 **Spacing Schedule** (${plans.length})\n\n`;
+                plans.forEach((plan) => {
+                    const date = new Date(plan.planned_date).toLocaleDateString();
+                    const crop = plan.crop_name || 'Unknown';
+                    const batch = plan.batch_id || '';
+                    response += `  • ${date}: ${crop}${batch ? ` (Batch ${batch})` : ''}\n`;
+                });
+                return response.trim();
             }
             // Planting schedule/plans
             if ((message.includes('planting') || message.includes('plant')) && (message.includes('plan') || message.includes('schedule') || message.includes('when') || message.includes('should'))) {
                 const data = await getMCPData('get_planting_plans', { limit: 10 });
                 const plans = JSON.parse(data);
                 if (plans.length === 0) {
-                    return `🌱 No planting activities scheduled currently.`;
+                    return `🌱 No planting activities scheduled.`;
                 }
-                return `🌱 **Planting Schedule:**\n\n${data}`;
+                let response = `🌱 **Planting Schedule** (${plans.length})\n\n`;
+                plans.forEach((plan) => {
+                    const date = new Date(plan.planned_date).toLocaleDateString();
+                    const crop = plan.crop_name || 'Unknown';
+                    const tower = plan.tower_number ? `Tower ${plan.tower_number}` : '';
+                    response += `  • ${date}: ${crop}${tower ? ` → ${tower}` : ''}\n`;
+                });
+                return response.trim();
             }
             // Crops
             if (message.includes('crop') && (message.includes('what') || message.includes('grow') || message.includes('show') || message.includes('list'))) {
@@ -278,8 +480,8 @@ Want specific variety recommendations or troubleshooting help? Just ask!`;
                 }
                 return `🏢 **Our Vendors:**\n\n${data}`;
             }
-            // Towers
-            if (message.includes('tower')) {
+            // General tower info (not growing-specific)
+            if (message.includes('tower') && !message.includes('growing') && !message.includes('planted') && !message.includes('have') && !message.includes('in my') && !message.includes('what')) {
                 const data = await getMCPData('get_towers');
                 const towers = JSON.parse(data);
                 if (towers.length === 0) {

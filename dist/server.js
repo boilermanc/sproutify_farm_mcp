@@ -7,12 +7,19 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { CallToolRequestSchema, ListToolsRequestSchema, } from '@modelcontextprotocol/sdk/types.js';
 import { SimpleSage } from './services/simpleSage.js';
+import OpenAI from 'openai';
 // --------------------
 // Supabase Setup
 // --------------------
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+// --------------------
+// OpenAI Setup
+// --------------------
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY || ''
+});
 // --------------------
 // Authentication Middleware
 // --------------------
@@ -225,6 +232,24 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
                     }
                 },
             },
+            {
+                name: 'search_training_manual',
+                description: 'Search the tower farm training manuals for information. Use this for questions about: tower farm design, construction, operations, maintenance, troubleshooting, best practices, systems, equipment, or general tower farming knowledge.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        query: {
+                            type: 'string',
+                            description: 'The search query or question to find relevant information in the training manuals'
+                        },
+                        limit: {
+                            type: 'number',
+                            description: 'Maximum number of results to return (default: 5)'
+                        }
+                    },
+                    required: ['query']
+                },
+            },
         ],
     };
 });
@@ -302,7 +327,7 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (req) => {
             const limit = args?.limit || 50;
             let query = supabaseAdmin
                 .from('plant_batches')
-                .select('*, seeds(*, crops(*))')
+                .select('*, seeds(*, crops(*)), towers(*)')
                 .order('created_at', { ascending: false })
                 .limit(limit);
             if (status) {
@@ -466,6 +491,62 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (req) => {
                 throw error;
             return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
         }
+        case 'search_training_manual': {
+            const query = args?.query;
+            const limit = args?.limit || 5;
+            if (!query) {
+                return { content: [{ type: 'text', text: 'Error: query parameter is required' }] };
+            }
+            try {
+                // Generate embedding for the query
+                const embeddingResponse = await openai.embeddings.create({
+                    model: 'text-embedding-ada-002',
+                    input: query
+                });
+                const queryEmbedding = embeddingResponse.data[0].embedding;
+                // Search using the Supabase function
+                const { data: results, error: searchError } = await supabaseAdmin.rpc('search_training_manual', {
+                    query_embedding: queryEmbedding,
+                    match_threshold: 0.7,
+                    match_count: limit,
+                    filter_farm_id: null, // Search all farms (global manuals)
+                    filter_manual_name: null // Search all manuals
+                });
+                if (searchError)
+                    throw searchError;
+                if (!results || results.length === 0) {
+                    return {
+                        content: [{
+                                type: 'text',
+                                text: 'No relevant information found in the training manuals for your question.'
+                            }]
+                    };
+                }
+                // Format results
+                const formattedResults = results.map((r, i) => ({
+                    manual: r.manual_name,
+                    section: r.section_title,
+                    content: r.content,
+                    page: r.page_number,
+                    relevance: (r.similarity * 100).toFixed(1) + '%'
+                }));
+                return {
+                    content: [{
+                            type: 'text',
+                            text: JSON.stringify(formattedResults, null, 2)
+                        }]
+                };
+            }
+            catch (error) {
+                console.error('[search_training_manual] Error:', error);
+                return {
+                    content: [{
+                            type: 'text',
+                            text: `Error searching training manual: ${error.message}`
+                        }]
+                };
+            }
+        }
         default:
             return { content: [{ type: 'text', text: `Unknown tool: ${name}` }] };
     }
@@ -601,7 +682,7 @@ app.post('/api/sage/chat', authMiddleware, async (req, res) => {
                     const limit = params?.limit || 50;
                     let query = supabaseAdmin
                         .from('plant_batches')
-                        .select('*, seeds(*, crops(*))')
+                        .select('*, seeds(*, crops(*)), towers(*)')
                         .order('created_at', { ascending: false })
                         .limit(limit);
                     if (farmId)
@@ -778,6 +859,40 @@ app.post('/api/sage/chat', authMiddleware, async (req, res) => {
                     if (error)
                         throw error;
                     return JSON.stringify(data, null, 2);
+                }
+                case 'search_training_manual': {
+                    const query = params?.query;
+                    const limit = params?.limit || 5;
+                    if (!query) {
+                        throw new Error('query parameter is required');
+                    }
+                    // Generate embedding for the query
+                    const embeddingResponse = await openai.embeddings.create({
+                        model: 'text-embedding-ada-002',
+                        input: query
+                    });
+                    const queryEmbedding = embeddingResponse.data[0].embedding;
+                    // Search using the Supabase function
+                    const { data: results, error: searchError } = await supabaseAdmin.rpc('search_training_manual', {
+                        query_embedding: queryEmbedding,
+                        match_threshold: 0.7,
+                        match_count: limit,
+                        filter_farm_id: farmId || null,
+                        filter_manual_name: null
+                    });
+                    if (searchError)
+                        throw searchError;
+                    if (!results || results.length === 0) {
+                        return JSON.stringify({ message: 'No relevant information found in the training manuals.' });
+                    }
+                    const formattedResults = results.map((r) => ({
+                        manual: r.manual_name,
+                        section: r.section_title,
+                        content: r.content,
+                        page: r.page_number,
+                        relevance: (r.similarity * 100).toFixed(1) + '%'
+                    }));
+                    return JSON.stringify(formattedResults, null, 2);
                 }
                 default:
                     throw new Error(`Unknown tool: ${toolName}`);
